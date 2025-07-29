@@ -1,0 +1,51 @@
+{
+  "name": "risc0-mcp-server",
+  "version": "1.0.0",
+  "description": "An MCP server for RISC Zero zkVM proof generation and verification",
+  "type": "module",
+  "main": "dist/index.js",
+  "module": "dist/index.js",
+  "bin": {
+    "risc0-mcp-server": "dist/index.js"
+  },
+  "access": "public",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc && shx chmod +x dist/*.js",
+    "prepare": "npm run build",
+    "start": "node dist/index.js"
+  },
+  "keywords": [
+    "risc0",
+    "zkvm",
+    "zero-knowledge",
+    "proof-generation",
+    "verification",
+    "mcp",
+    "claude",
+    "ai",
+    "zk-starks"
+  ],
+  "author": "Ronan Takizawa",
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^0.6.0",
+    "axios": "^1.6.0",
+    "child_process": "^1.0.2"
+  },
+  "devDependencies": {
+    "@types/node": "^20.9.0",
+    "shx": "^0.3.4",
+    "typescript": "^5.2.2"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ronantakizawa/risc0mcp.git"
+  },
+  "bugs": {
+    "url": "https://github.com/ronantakizawa/risc0mcp/issues"
+  },
+  "homepage": "https://github.com/ronantakizawa/risc0mcp#readme"
+}
