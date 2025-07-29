@@ -71,6 +71,43 @@ class RiscZeroAdditionServer {
             },
             required: ['a', 'b'],
           },
+        },
+        {
+          name: 'zkvm_multiply',
+          description: 'Perform multiplication of two numbers using RISC Zero zkVM and return the result with ZK proof receipt',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              a: {
+                type: 'number',
+                description: 'First number to multiply',
+              },
+              b: {
+                type: 'number',
+                description: 'Second number to multiply',
+              },
+              forceRebuild: {
+                type: 'boolean',
+                description: 'Whether to rebuild the project from scratch (slower but ensures fresh build)',
+                default: false
+              }
+            },
+            required: ['a', 'b'],
+          },
+        },
+        {
+          name: 'verify_proof',
+          description: 'Verify a RISC Zero proof from a hex file and extract the computation result',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              proofFilePath: {
+                type: 'string',
+                description: 'Path to the .hex proof file to verify',
+              }
+            },
+            required: ['proofFilePath'],
+          },
         }
       ],
     }));
@@ -79,7 +116,11 @@ class RiscZeroAdditionServer {
       try {
         switch (request.params.name) {
           case 'zkvm_add':
-            return await this.performZkVmAddition(request.params.arguments);
+            return await this.performZkVmOperation('add', request.params.arguments);
+          case 'zkvm_multiply':
+            return await this.performZkVmOperation('multiply', request.params.arguments);
+          case 'verify_proof':
+            return await this.verifyProof(request.params.arguments);
           default:
             throw new McpError(
               ErrorCode.MethodNotFound,
@@ -130,7 +171,7 @@ class RiscZeroAdditionServer {
     }
   }
 
-  async performZkVmAddition(args: any) {
+  async performZkVmOperation(operation: string, args: any) {
     const { a, b, forceRebuild = false } = args;
 
     if (typeof a !== 'number' || typeof b !== 'number') {
@@ -141,7 +182,8 @@ class RiscZeroAdditionServer {
     }
 
     try {
-      console.error(`[API] Starting zkVM addition: ${a} + ${b} (production mode)`);
+      const opSymbol = operation === 'add' ? '+' : '*';
+      console.error(`[API] Starting zkVM ${operation}: ${a} ${opSymbol} ${b} (production mode)`);
       
       // Ensure the RISC Zero project exists and is built
       await this.ensureProjectExists(forceRebuild);
@@ -167,7 +209,7 @@ class RiscZeroAdditionServer {
       const startTime = Date.now();
 
       // Use the pre-built binary directly to avoid build time
-      const command = `${hostBinary} ${a} ${b}`;
+      const command = `${hostBinary} ${operation} ${a} ${b}`;
       
       let result;
       
@@ -233,11 +275,11 @@ class RiscZeroAdditionServer {
             type: 'text',
             text: JSON.stringify({
               computation: {
-                operation: 'addition',
+                operation: operation,
                 inputs: { a, b },
                 result: result.result,
-                expected: a + b,
-                correct: result.result === (a + b)
+                expected: operation === 'add' ? a + b : a * b,
+                correct: result.result === (operation === 'add' ? a + b : a * b)
               },
               zkProof: {
                 mode: 'Production (real ZK proof)',
@@ -257,11 +299,109 @@ class RiscZeroAdditionServer {
     } catch (error) {
       throw new McpError(
         ErrorCode.InternalError,
-        `Failed to perform zkVM addition: ${error instanceof Error ? error.message : String(error)}`
+        `Failed to perform zkVM ${operation}: ${error instanceof Error ? error.message : String(error)}`
       );
     }
   }
 
+  async verifyProof(args: any) {
+    const { proofFilePath } = args;
+
+    if (typeof proofFilePath !== 'string') {
+      throw new McpError(
+        ErrorCode.InvalidParams,
+        'proofFilePath must be a string'
+      );
+    }
+
+    try {
+      console.error(`[Verify] Starting proof verification: ${proofFilePath}`);
+      
+      // Check if proof file exists
+      if (!fs.existsSync(proofFilePath)) {
+        throw new Error(`Proof file not found: ${proofFilePath}`);
+      }
+
+      console.error(`[Verify] Proof file found, calling verification tool...`);
+      
+      // Ensure verification tool is built
+      const verifyBinary = path.join(this.projectPath, 'target', 'release', 'verify');
+      if (!fs.existsSync(verifyBinary)) {
+        console.error('[Verify] Building verification tool...');
+        await execAsync('cargo build --release --bin verify', { 
+          cwd: this.projectPath,
+          timeout: 300000 // 5 minutes timeout for build
+        });
+      }
+
+      console.error(`[Verify] Starting verification process...`);
+      const startTime = Date.now();
+
+      // Run the verification tool with verbose output
+      const command = `${verifyBinary} --file "${proofFilePath}" --verbose`;
+      
+      const execResult = await execAsync(command, { 
+        cwd: this.projectPath,
+        timeout: 30000 // 30 seconds should be plenty for verification
+      });
+
+      const endTime = Date.now();
+      console.error(`[Verify] Verification completed in ${endTime - startTime}ms`);
+
+      // Parse the verification output
+      const output = execResult.stdout;
+      const stderr = execResult.stderr;
+
+      // Extract result from output (look for "➡️  Computation result: X")
+      const resultMatch = output.match(/➡️\s*Computation result:\s*(\d+)/);
+      const extractedResult = resultMatch ? parseInt(resultMatch[1], 10) : null;
+
+      // Check if verification was successful
+      const isSuccessful = output.includes('PROOF VERIFICATION SUCCESSFUL');
+      const verificationTimeMatch = output.match(/PROOF VERIFICATION SUCCESSFUL! \(([^)]+)\)/);
+      const verificationTime = verificationTimeMatch ? verificationTimeMatch[1] : null;
+
+      // Extract additional details if available
+      const imageIdMatch = output.match(/Image ID:\s*([a-f0-9]+)/);
+      const journalBytesMatch = output.match(/Journal bytes:\s*(\[[^\]]+\])/);
+      const proofSizeMatch = output.match(/Estimated binary size:\s*(\d+) bytes/);
+
+      const verificationDetails = {
+        status: isSuccessful ? 'verified' : 'failed',
+        extractedResult,
+        verificationTimeMs: endTime - startTime,
+        proofDetails: {
+          imageId: imageIdMatch ? imageIdMatch[1] : null,
+          journalBytes: journalBytesMatch ? journalBytesMatch[1] : null,
+          proofSizeBytes: proofSizeMatch ? parseInt(proofSizeMatch[1], 10) : null,
+          verificationTime
+        },
+        rawOutput: output,
+        rawStderr: stderr
+      };
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              verification: verificationDetails,
+              note: isSuccessful ? 
+                'Proof verification successful - cryptographically authentic!' : 
+                'Proof verification failed'
+            }, null, 2),
+          },
+        ],
+      };
+
+    } catch (error) {
+      console.error(`[Verify] Verification failed:`, error);
+      throw new McpError(
+        ErrorCode.InternalError,
+        `Failed to verify proof: ${error instanceof Error ? error.message : String(error)}`
+      );
+    }
+  }
 
   async run() {
     const transport = new StdioServerTransport();

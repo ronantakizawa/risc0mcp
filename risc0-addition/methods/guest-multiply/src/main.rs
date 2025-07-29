@@ -10,8 +10,8 @@ fn main() {
     let a: i32 = env::read();
     let b: i32 = env::read();
     
-    // Perform addition
-    let result = a + b;
+    // Perform multiplication
+    let result = a * b;
     
     // Commit the result to the journal (public output)
     env::commit(&result);

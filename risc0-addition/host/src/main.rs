@@ -1,4 +1,4 @@
-use methods::{ADDITION_ELF, ADDITION_ID};
+use methods::{ADDITION_ELF, ADDITION_ID, MULTIPLY_GUEST_ELF, MULTIPLY_GUEST_ID};
 use risc0_zkvm::{default_prover, ExecutorEnv};
 use std::mem;
 use std::time::Instant;
@@ -11,16 +11,26 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Read command line arguments
     let args: Vec<String> = std::env::args().collect();
-    if args.len() != 3 {
-        eprintln!("Usage: {} <a> <b>", args[0]);
+    if args.len() != 4 {
+        eprintln!("Usage: {} <operation> <a> <b>", args[0]);
+        eprintln!("Operations: add, multiply");
         std::process::exit(1);
     }
     
-    let a: u32 = args[1].parse().expect("First argument must be a number");
-    let b: u32 = args[2].parse().expect("Second argument must be a number");
+    let operation = &args[1];
+    let a: i32 = args[2].parse().expect("Second argument must be a number");
+    let b: i32 = args[3].parse().expect("Third argument must be a number");
     
     let total_start = Instant::now();
-    eprintln!("🚀 Starting RISC Zero zkVM computation: {} + {}", a, b);
+    let (elf_data, image_id, op_symbol, expected_result) = match operation.as_str() {
+        "add" => (ADDITION_ELF, ADDITION_ID, "+", a + b),
+        "multiply" => (MULTIPLY_GUEST_ELF, MULTIPLY_GUEST_ID, "*", a * b),
+        _ => {
+            eprintln!("Error: Unknown operation '{}'. Use 'add' or 'multiply'.", operation);
+            std::process::exit(1);
+        }
+    };
+    eprintln!("🚀 Starting RISC Zero zkVM computation: {} {} {}", a, op_symbol, b);
     
     let dev_mode = std::env::var("RISC0_DEV_MODE").unwrap_or("0".to_string()) == "1";
     if dev_mode {
@@ -48,7 +58,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         eprintln!("🔄 Executing guest program in zkVM...");
     }
     
-    let prove_info = prover.prove(env, ADDITION_ELF)?;
+    let prove_info = prover.prove(env, elf_data)?;
     let receipt = prove_info.receipt;
     let prove_duration = prove_start.elapsed();
     
@@ -63,13 +73,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     
     // Extract the result from the receipt's journal
     eprintln!("📖 Extracting result from receipt journal...");
-    let result: u32 = receipt.journal.decode()?;
+    let result: i32 = receipt.journal.decode()?;
     eprintln!("🔢 Computation result: {} + {} = {}", a, b, result);
     
     // Verify the receipt
     eprintln!("🔍 Verifying receipt authenticity...");
     let verify_start = Instant::now();
-    let verification_result = receipt.verify(ADDITION_ID);
+    let verification_result = receipt.verify(image_id);
     let verify_duration = verify_start.elapsed();
     let is_verified = verification_result.is_ok();
     
@@ -100,7 +110,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     
     // Print results in JSON format for easy parsing
     let id_bytes: &[u8] = unsafe { 
-        std::slice::from_raw_parts(ADDITION_ID.as_ptr() as *const u8, mem::size_of_val(&ADDITION_ID))
+        std::slice::from_raw_parts(image_id.as_ptr() as *const u8, mem::size_of_val(&image_id))
     };
     
     // Get proof/seal data
@@ -111,7 +121,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let size = receipt_bytes.len();
         
         // Save proof to file
-        let proof_filename = format!("proof_{}_{}.hex", a, b);
+        let proof_filename = format!("proof_{}_{}_{}.hex", operation, a, b);
         match std::fs::write(&proof_filename, &receipt_hex) {
             Ok(_) => eprintln!("📁 Full receipt proof saved to: {}", proof_filename),
             Err(e) => eprintln!("⚠️  Failed to save proof file: {}", e),

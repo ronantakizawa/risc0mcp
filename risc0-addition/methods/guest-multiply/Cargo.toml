@@ -1,0 +1,7 @@
+[package]
+name = "multiply-guest"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+risc0-zkvm = { version = "^2.3.1", default-features = false, features = ["std"] }

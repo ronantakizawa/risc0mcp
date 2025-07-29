@@ -90,11 +90,39 @@ Performs addition of two numbers using RISC Zero zkVM and returns the result wit
 }
 ```
 
+#### `verify_proof`
+Verifies a RISC Zero proof from a hex file and extracts the computation result.
+
+**Parameters:**
+- `proofFilePath` (string): Path to the .hex proof file to verify
+
+**Response:**
+```json
+{
+  "verification": {
+    "status": "verified",
+    "extractedResult": 12,
+    "verificationTimeMs": 31,
+    "proofDetails": {
+      "imageId": "2034acfbf318d9ee6066c1f5670313f1b7986c701a763ae7757ab5ade82aee17",
+      "journalBytes": "[12, 0, 0, 0]",
+      "proofSizeBytes": 209506,
+      "verificationTime": "16.50ms"
+    }
+  },
+  "note": "Proof verification successful - cryptographically authentic!"
+}
+```
+
 ## Testing
 
-Test the server with the included test script:
+Test the server with the included test scripts:
 ```bash
+# Test zkvm_add function
 node test-simple.js
+
+# Test verify_proof function
+node test-verify.js
 ```
 
 ## Proof Files
@@ -103,6 +131,37 @@ Generated proofs are saved as hex files in the project directory:
 - Format: `proof_{a}_{b}.hex`
 - Contains: Complete serialized receipt data
 - Can be used for independent verification
+
+### Verifying Proofs
+
+#### Using the Verification Script (Recommended)
+```bash
+# Verify a proof with expected result
+./verify-proof.sh proof_5_7.hex 12
+
+# Verify a proof without expected result
+./verify-proof.sh proof_5_7.hex
+```
+
+#### Using the Verification Tool Directly
+```bash
+# Build the verification tool (if not already built)
+cd risc0-addition
+cargo build --release --bin verify
+
+# Verify with expected result and verbose output
+./target/release/verify --file ../proof_5_7.hex --expected 12 --verbose
+
+# Verify without expected result
+./target/release/verify --file ../proof_5_7.hex --verbose
+```
+
+#### Verification Output
+A successful verification will show:
+- ✅ Proof decoding and deserialization
+- 🔢 Extracted computation result
+- 🔐 Cryptographic verification status
+- 📊 Detailed proof information (with --verbose)
 
 ## Development
 
