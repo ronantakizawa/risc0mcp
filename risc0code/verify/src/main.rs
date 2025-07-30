@@ -1,4 +1,4 @@
-use methods::{ADDITION_ID, MULTIPLY_GUEST_ID};
+use methods::{ADDITION_ID, MULTIPLY_GUEST_ID, SQRT_GUEST_ID, MODEXP_GUEST_ID};
 use risc0_zkvm::Receipt;
 use std::fs;
 use clap::Parser;
@@ -42,6 +42,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         
         if filename.contains("multiply") {
             "multiply".to_string()
+        } else if filename.contains("sqrt") {
+            "sqrt".to_string()
+        } else if filename.contains("modexp") {
+            "modexp".to_string()
         } else {
             "add".to_string() // default
         }
@@ -49,6 +53,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     
     let (image_id, op_name) = match operation.as_str() {
         "multiply" => (MULTIPLY_GUEST_ID, "multiplication"),
+        "sqrt" => (SQRT_GUEST_ID, "square root"),
+        "modexp" => (MODEXP_GUEST_ID, "modular exponentiation"),
         _ => (ADDITION_ID, "addition"),
     };
     
@@ -82,8 +88,88 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     
     // Extract the result from the journal
     println!("🔢 Extracting computation result...");
-    let result: i32 = receipt.journal.decode()?;
-    println!("➡️  Computation result: {}", result);
+    let result: i32 = match operation.as_str() {
+        "sqrt" => {
+            // For sqrt, manually decode the bytes for fixed-point values (i64)
+            let bytes = &receipt.journal.bytes;
+            if bytes.len() < 16 {
+                return Err("Journal too short for sqrt operation".into());
+            }
+            
+            // First 8 bytes: input (little-endian i64 fixed-point)
+            let input_fixed = i64::from_le_bytes([
+                bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5], bytes[6], bytes[7]
+            ]);
+            // Next 8 bytes: sqrt result (little-endian i64 fixed-point)
+            let sqrt_result_fixed = i64::from_le_bytes([
+                bytes[8], bytes[9], bytes[10], bytes[11], bytes[12], bytes[13], bytes[14], bytes[15]
+            ]);
+            
+            // Convert from fixed-point to decimal (scale factor 10000)
+            let scale = 10000i64;
+            let input_decimal = input_fixed as f64 / scale as f64;
+            let sqrt_result_decimal = sqrt_result_fixed as f64 / scale as f64;
+            
+            println!("➡️  Computation result: sqrt({}) = {}", input_decimal, sqrt_result_decimal);
+            sqrt_result_decimal as i32
+        },
+        "modexp" => {
+            // For modexp, manually decode the bytes for u64 values
+            let bytes = &receipt.journal.bytes;
+            if bytes.len() < 32 {
+                return Err("Journal too short for modexp operation".into());
+            }
+            
+            // Decode four u64 values (little-endian): base, exponent, modulus, result
+            let base = u64::from_le_bytes([
+                bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5], bytes[6], bytes[7]
+            ]);
+            let exponent = u64::from_le_bytes([
+                bytes[8], bytes[9], bytes[10], bytes[11], bytes[12], bytes[13], bytes[14], bytes[15]
+            ]);
+            let modulus = u64::from_le_bytes([
+                bytes[16], bytes[17], bytes[18], bytes[19], bytes[20], bytes[21], bytes[22], bytes[23]
+            ]);
+            let result = u64::from_le_bytes([
+                bytes[24], bytes[25], bytes[26], bytes[27], bytes[28], bytes[29], bytes[30], bytes[31]
+            ]);
+            
+            println!("➡️  Computation result: {}^{} mod {} = {}", base, exponent, modulus, result);
+            result as i32
+        },
+        _ => {
+            // For decimal operations (add/multiply), manually decode the journal bytes
+            let bytes = &receipt.journal.bytes;
+            if bytes.len() < 24 {
+                return Err("Journal too short for decimal operation".into());
+            }
+            
+            // Decode three i64 values (little-endian): a, b, result
+            let a_fixed = i64::from_le_bytes([
+                bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5], bytes[6], bytes[7]
+            ]);
+            let b_fixed = i64::from_le_bytes([
+                bytes[8], bytes[9], bytes[10], bytes[11], bytes[12], bytes[13], bytes[14], bytes[15]
+            ]);
+            let result_fixed = i64::from_le_bytes([
+                bytes[16], bytes[17], bytes[18], bytes[19], bytes[20], bytes[21], bytes[22], bytes[23]
+            ]);
+            
+            // Convert from fixed-point to decimal (scale factor 10000)
+            let scale = 10000i64;
+            let a_decimal = a_fixed as f64 / scale as f64;
+            let b_decimal = b_fixed as f64 / scale as f64;
+            let result_decimal = result_fixed as f64 / scale as f64;
+            
+            println!("➡️  Computation result: {} {} {} = {}", 
+                a_decimal, 
+                if operation == "multiply" { "*" } else { "+" }, 
+                b_decimal, 
+                result_decimal
+            );
+            result_decimal as i32
+        }
+    };
     
     if let Some(expected) = args.expected {
         if result == expected {

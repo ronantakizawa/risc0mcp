@@ -14,16 +14,16 @@ import * as path from 'path';
 
 const execAsync = promisify(exec);
 
-class RiscZeroAdditionServer {
+class RiscZeroCodeServer {
   private server: Server;
   private projectPath: string;
 
   constructor() {
-    console.error('[Setup] Initializing RISC Zero Addition MCP server...');
+    console.error('[Setup] Initializing RISC Zero Code MCP server...');
     
     this.server = new Server(
       {
-        name: 'risc0-addition-server',
+        name: 'risc0code-server',
         version: '1.0.0',
       },
       {
@@ -33,8 +33,8 @@ class RiscZeroAdditionServer {
       }
     );
 
-    // Path where we'll create our RISC Zero addition project
-    this.projectPath = path.join(process.cwd(), 'risc0-addition');
+    // Path where we'll create our RISC Zero code project
+    this.projectPath = path.join(process.cwd(), 'risc0code');
 
     this.setupToolHandlers();
     
@@ -96,6 +96,52 @@ class RiscZeroAdditionServer {
           },
         },
         {
+          name: 'zkvm_sqrt',
+          description: 'Compute square root of a decimal number using RISC Zero zkVM and return the result with ZK proof receipt',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              n: {
+                type: 'number',
+                description: 'Decimal number to compute square root for (must be non-negative)',
+              },
+              forceRebuild: {
+                type: 'boolean',
+                description: 'Whether to rebuild the project from scratch (slower but ensures fresh build)',
+                default: false
+              }
+            },
+            required: ['n'],
+          },
+        },
+        {
+          name: 'zkvm_modexp',
+          description: 'Perform modular exponentiation (a^b mod n) using RISC Zero zkVM and return the result with ZK proof receipt',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              base: {
+                type: 'number',
+                description: 'Base number (a)',
+              },
+              exponent: {
+                type: 'number',
+                description: 'Exponent (b)',
+              },
+              modulus: {
+                type: 'number',
+                description: 'Modulus (n)',
+              },
+              forceRebuild: {
+                type: 'boolean',
+                description: 'Whether to rebuild the project from scratch (slower but ensures fresh build)',
+                default: false
+              }
+            },
+            required: ['base', 'exponent', 'modulus'],
+          },
+        },
+        {
           name: 'verify_proof',
           description: 'Verify a RISC Zero proof from a hex file and extract the computation result',
           inputSchema: {
@@ -119,6 +165,10 @@ class RiscZeroAdditionServer {
             return await this.performZkVmOperation('add', request.params.arguments);
           case 'zkvm_multiply':
             return await this.performZkVmOperation('multiply', request.params.arguments);
+          case 'zkvm_sqrt':
+            return await this.performZkVmSqrt(request.params.arguments);
+          case 'zkvm_modexp':
+            return await this.performZkVmModexp(request.params.arguments);
           case 'verify_proof':
             return await this.verifyProof(request.params.arguments);
           default:
@@ -142,7 +192,7 @@ class RiscZeroAdditionServer {
 
   private async ensureProjectExists(forceRebuild: boolean = false): Promise<void> {
     if (!fs.existsSync(this.projectPath)) {
-      throw new Error(`RISC Zero project not found at ${this.projectPath}. Please ensure the risc0-addition project exists.`);
+      throw new Error(`RISC Zero project not found at ${this.projectPath}. Please ensure the risc0code project exists.`);
     }
     
     const targetPath = path.join(this.projectPath, 'target');
@@ -284,14 +334,9 @@ class RiscZeroAdditionServer {
               zkProof: {
                 mode: 'Production (real ZK proof)',
                 imageId: result.image_id,
-                journalBytes: result.receipt_journal,
                 verificationStatus: result.verification_status,
-                proofExists: true,
-                // Include proof file information (not the raw hex data)
-                proofSizeBytes: result.proof_size_bytes || null,
                 proofFilePath: result.proof_file_path ? path.resolve(this.projectPath, result.proof_file_path) : null
-              },
-              note: 'Real zero-knowledge proof generated and verified!'
+              }
             }, null, 2),
           },
         ],
@@ -300,6 +345,278 @@ class RiscZeroAdditionServer {
       throw new McpError(
         ErrorCode.InternalError,
         `Failed to perform zkVM ${operation}: ${error instanceof Error ? error.message : String(error)}`
+      );
+    }
+  }
+
+  async performZkVmSqrt(args: any) {
+    const { n, forceRebuild = false } = args;
+
+    if (typeof n !== 'number' || n < 0) {
+      throw new McpError(
+        ErrorCode.InvalidParams,
+        'n must be a non-negative number'
+      );
+    }
+
+    try {
+      console.error(`[API] Starting zkVM sqrt: sqrt(${n}) (production mode)`);
+      
+      // Ensure the RISC Zero project exists and is built
+      await this.ensureProjectExists(forceRebuild);
+      
+      console.error(`[API] Project ready, executing sqrt computation...`);
+      const hostBinary = path.join(this.projectPath, 'target', 'release', 'host');
+      
+      const env = {
+        ...process.env,
+        RISC0_DEV_MODE: '0', // Always production mode
+        RUST_LOG: 'info'
+      };
+
+      // Check if host binary exists
+      if (fs.existsSync(hostBinary)) {
+        console.error(`[API] Host binary found at: ${hostBinary}`);
+      } else {
+        console.error(`[API] ERROR: Host binary not found at: ${hostBinary}`);
+        throw new Error(`Host binary not found. Please run 'cargo build --release' in ${this.projectPath}`);
+      }
+
+      console.error(`[API] Starting binary execution...`);
+      const startTime = Date.now();
+
+      // Use the pre-built binary directly to avoid build time
+      const command = `${hostBinary} sqrt ${n}`;
+      
+      let result;
+      
+      try {
+        const execResult = await execAsync(command, { 
+          cwd: this.projectPath, 
+          env,
+          timeout: 60000 // Should complete within MCP inspector timeout now
+        });
+        
+        const endTime = Date.now();
+        console.error(`[API] Binary execution completed in ${endTime - startTime}ms`);
+
+        // Parse the JSON output from the host program
+        try {
+          // Extract JSON from stdout (skip log lines, find the { } block)
+          const lines = execResult.stdout.split('\n');
+          let jsonStart = -1;
+          let jsonEnd = -1;
+          
+          // Find the line that starts with '{'
+          for (let i = 0; i < lines.length; i++) {
+            if (lines[i].trim().startsWith('{')) {
+              jsonStart = i;
+              break;
+            }
+          }
+          
+          // Find the line that ends with '}'
+          for (let i = lines.length - 1; i >= 0; i--) {
+            if (lines[i].trim().endsWith('}')) {
+              jsonEnd = i;
+              break;
+            }
+          }
+          
+          if (jsonStart >= 0 && jsonEnd >= 0) {
+            const jsonLines = lines.slice(jsonStart, jsonEnd + 1);
+            const jsonString = jsonLines.join('\n');
+            
+            result = JSON.parse(jsonString);
+            console.error(`[API] JSON parsed successfully:`, result);
+          } else {
+            throw new Error('Could not find JSON block in output');
+          }
+        } catch (parseError) {
+          console.error(`[API] JSON parse failed:`, parseError);
+          // If JSON parsing fails, return raw output
+          result = {
+            error: 'Failed to parse program output',
+            raw_output: execResult.stdout,
+            raw_stderr: execResult.stderr
+          };
+        }
+      } catch (execError) {
+        console.error(`[API] Execution failed:`, execError);
+        throw execError;
+      }
+      
+      // Calculate expected result for validation (decimal)
+      const expectedResult = Math.sqrt(n);
+      
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              computation: {
+                operation: 'sqrt',
+                inputs: { n },
+                result: result.result,
+                expected: expectedResult,
+                correct: Math.abs(result.result - expectedResult) < 0.01
+              },
+              zkProof: {
+                mode: 'Production (real ZK proof)',
+                imageId: result.image_id,
+                verificationStatus: result.verification_status,
+                proofFilePath: result.proof_file_path ? path.resolve(this.projectPath, result.proof_file_path) : null
+              }
+            }, null, 2),
+          },
+        ],
+      };
+    } catch (error) {
+      throw new McpError(
+        ErrorCode.InternalError,
+        `Failed to perform zkVM sqrt: ${error instanceof Error ? error.message : String(error)}`
+      );
+    }
+  }
+
+  async performZkVmModexp(args: any) {
+    const { base, exponent, modulus, forceRebuild = false } = args;
+
+    if (typeof base !== 'number' || typeof exponent !== 'number' || typeof modulus !== 'number' || 
+        base < 0 || exponent < 0 || modulus <= 0 || 
+        !Number.isInteger(base) || !Number.isInteger(exponent) || !Number.isInteger(modulus)) {
+      throw new McpError(
+        ErrorCode.InvalidParams,
+        'base, exponent, and modulus must be non-negative integers, and modulus must be positive'
+      );
+    }
+
+    try {
+      console.error(`[API] Starting zkVM modexp: ${base}^${exponent} mod ${modulus} (production mode)`);
+      
+      // Ensure the RISC Zero project exists and is built
+      await this.ensureProjectExists(forceRebuild);
+      
+      console.error(`[API] Project ready, executing modexp computation...`);
+      const hostBinary = path.join(this.projectPath, 'target', 'release', 'host');
+      
+      const env = {
+        ...process.env,
+        RISC0_DEV_MODE: '0', // Always production mode
+        RUST_LOG: 'info'
+      };
+
+      // Check if host binary exists
+      if (fs.existsSync(hostBinary)) {
+        console.error(`[API] Host binary found at: ${hostBinary}`);
+      } else {
+        console.error(`[API] ERROR: Host binary not found at: ${hostBinary}`);
+        throw new Error(`Host binary not found. Please run 'cargo build --release' in ${this.projectPath}`);
+      }
+
+      console.error(`[API] Starting binary execution...`);
+      const startTime = Date.now();
+
+      // Use the pre-built binary directly to avoid build time
+      const command = `${hostBinary} modexp ${base} ${exponent} ${modulus}`;
+      
+      let result;
+      
+      try {
+        const execResult = await execAsync(command, { 
+          cwd: this.projectPath, 
+          env,
+          timeout: 60000 // Should complete within MCP inspector timeout now
+        });
+        
+        const endTime = Date.now();
+        console.error(`[API] Binary execution completed in ${endTime - startTime}ms`);
+
+        // Parse the JSON output from the host program
+        try {
+          // Extract JSON from stdout (skip log lines, find the { } block)
+          const lines = execResult.stdout.split('\n');
+          let jsonStart = -1;
+          let jsonEnd = -1;
+          
+          // Find the line that starts with '{'
+          for (let i = 0; i < lines.length; i++) {
+            if (lines[i].trim().startsWith('{')) {
+              jsonStart = i;
+              break;
+            }
+          }
+          
+          // Find the line that ends with '}'
+          for (let i = lines.length - 1; i >= 0; i--) {
+            if (lines[i].trim().endsWith('}')) {
+              jsonEnd = i;
+              break;
+            }
+          }
+          
+          if (jsonStart >= 0 && jsonEnd >= 0) {
+            const jsonLines = lines.slice(jsonStart, jsonEnd + 1);
+            const jsonString = jsonLines.join('\n');
+            
+            result = JSON.parse(jsonString);
+            console.error(`[API] JSON parsed successfully:`, result);
+          } else {
+            throw new Error('Could not find JSON block in output');
+          }
+        } catch (parseError) {
+          console.error(`[API] JSON parse failed:`, parseError);
+          // If JSON parsing fails, return raw output
+          result = {
+            error: 'Failed to parse program output',
+            raw_output: execResult.stdout,
+            raw_stderr: execResult.stderr
+          };
+        }
+      } catch (execError) {
+        console.error(`[API] Execution failed:`, execError);
+        throw execError;
+      }
+      
+      // Calculate expected result for validation using JavaScript's modular exponentiation
+      let expectedResult = 1;
+      let baseTemp = base % modulus;
+      let expTemp = exponent;
+      
+      while (expTemp > 0) {
+        if (expTemp % 2 === 1) {
+          expectedResult = (expectedResult * baseTemp) % modulus;
+        }
+        baseTemp = (baseTemp * baseTemp) % modulus;
+        expTemp = Math.floor(expTemp / 2);
+      }
+      
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              computation: {
+                operation: 'modexp',
+                inputs: { base, exponent, modulus },
+                result: result.result,
+                expected: expectedResult,
+                correct: result.result === expectedResult
+              },
+              zkProof: {
+                mode: 'Production (real ZK proof)',
+                imageId: result.image_id,
+                verificationStatus: result.verification_status,
+                proofFilePath: result.proof_file_path ? path.resolve(this.projectPath, result.proof_file_path) : null
+              }
+            }, null, 2),
+          },
+        ],
+      };
+    } catch (error) {
+      throw new McpError(
+        ErrorCode.InternalError,
+        `Failed to perform zkVM modexp: ${error instanceof Error ? error.message : String(error)}`
       );
     }
   }
@@ -406,9 +723,9 @@ class RiscZeroAdditionServer {
   async run() {
     const transport = new StdioServerTransport();
     await this.server.connect(transport);
-    console.error('RISC Zero Addition MCP server running on stdio');
+    console.error('RISC Zero Code MCP server running on stdio');
   }
 }
 
-const server = new RiscZeroAdditionServer();
+const server = new RiscZeroCodeServer();
 server.run().catch(console.error);
