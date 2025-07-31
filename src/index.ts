@@ -11,15 +11,23 @@ import { exec } from 'child_process';
 import { promisify } from 'util';
 import * as fs from 'fs';
 import * as path from 'path';
+import * as crypto from 'crypto';
 
 const execAsync = promisify(exec);
 
 class RiscZeroCodeServer {
   private server: Server;
   private projectPath: string;
+  private sessionId: string;
+  private requestCounter: number;
 
   constructor() {
     console.error('[Setup] Initializing RISC Zero Code MCP server...');
+    
+    // Generate unique session ID for this MCP server instance
+    this.sessionId = crypto.randomUUID();
+    this.requestCounter = 0;
+    console.error(`[Setup] Generated session ID: ${this.sessionId}`);
     
     this.server = new Server(
       {
@@ -261,8 +269,13 @@ class RiscZeroCodeServer {
     }
 
     try {
+      // Generate session context for this request
+      const requestNonce = ++this.requestCounter;
+      const sessionIdHex = this.sessionId.replace(/-/g, '');
+      
       const opSymbol = operation === 'add' ? '+' : '*';
       console.error(`[API] Starting zkVM ${operation}: ${a} ${opSymbol} ${b} (production mode)`);
+      console.error(`[API] Session context: ID=${sessionIdHex}, nonce=${requestNonce}`);
       
       // Ensure the RISC Zero project exists and is built
       await this.ensureProjectExists(forceRebuild);
@@ -287,8 +300,8 @@ class RiscZeroCodeServer {
       console.error(`[API] Starting binary execution...`);
       const startTime = Date.now();
 
-      // Use the pre-built binary directly to avoid build time
-      const command = `${hostBinary} ${operation} ${a} ${b}`;
+      // Include session context in command: operation sessionId requestNonce a b
+      const command = `${hostBinary} ${operation} ${sessionIdHex} ${requestNonce} ${a} ${b}`;
       
       let result;
       
@@ -389,7 +402,12 @@ class RiscZeroCodeServer {
     }
 
     try {
+      // Generate session context for this request
+      const requestNonce = ++this.requestCounter;
+      const sessionIdHex = this.sessionId.replace(/-/g, '');
+      
       console.error(`[API] Starting zkVM sqrt: sqrt(${n}) (production mode)`);
+      console.error(`[API] Session context: ID=${sessionIdHex}, nonce=${requestNonce}`);
       
       // Ensure the RISC Zero project exists and is built
       await this.ensureProjectExists(forceRebuild);
@@ -414,8 +432,8 @@ class RiscZeroCodeServer {
       console.error(`[API] Starting binary execution...`);
       const startTime = Date.now();
 
-      // Use the pre-built binary directly to avoid build time
-      const command = `${hostBinary} sqrt ${n}`;
+      // Include session context in command: sqrt sessionId requestNonce n
+      const command = `${hostBinary} sqrt ${sessionIdHex} ${requestNonce} ${n}`;
       
       let result;
       
@@ -521,7 +539,12 @@ class RiscZeroCodeServer {
     }
 
     try {
+      // Generate session context for this request
+      const requestNonce = ++this.requestCounter;
+      const sessionIdHex = this.sessionId.replace(/-/g, '');
+      
       console.error(`[API] Starting zkVM modexp: ${base}^${exponent} mod ${modulus} (production mode)`);
+      console.error(`[API] Session context: ID=${sessionIdHex}, nonce=${requestNonce}`);
       
       // Ensure the RISC Zero project exists and is built
       await this.ensureProjectExists(forceRebuild);
@@ -546,8 +569,8 @@ class RiscZeroCodeServer {
       console.error(`[API] Starting binary execution...`);
       const startTime = Date.now();
 
-      // Use the pre-built binary directly to avoid build time
-      const command = `${hostBinary} modexp ${base} ${exponent} ${modulus}`;
+      // Include session context in command: modexp sessionId requestNonce base exponent modulus
+      const command = `${hostBinary} modexp ${sessionIdHex} ${requestNonce} ${base} ${exponent} ${modulus}`;
       
       let result;
       
@@ -664,7 +687,12 @@ class RiscZeroCodeServer {
     }
 
     try {
+      // Generate session context for this request
+      const requestNonce = ++this.requestCounter;
+      const sessionIdHex = this.sessionId.replace(/-/g, '');
+      
       console.error(`[API] Starting zkVM range proof: secret ∈ [${minValue}, ${maxValue}] (production mode)`);
+      console.error(`[API] Session context: ID=${sessionIdHex}, nonce=${requestNonce}`);
       
       // Ensure the RISC Zero project exists and is built
       await this.ensureProjectExists(forceRebuild);
@@ -689,8 +717,8 @@ class RiscZeroCodeServer {
       console.error(`[API] Starting binary execution...`);
       const startTime = Date.now();
 
-      // Use the pre-built binary directly to avoid build time
-      const command = `${hostBinary} range ${secretNumber} ${minValue} ${maxValue}`;
+      // Include session context in command: range sessionId requestNonce secretNumber minValue maxValue
+      const command = `${hostBinary} range ${sessionIdHex} ${requestNonce} ${secretNumber} ${minValue} ${maxValue}`;
       
       let result;
       
@@ -846,10 +874,36 @@ class RiscZeroCodeServer {
       const journalBytesMatch = output.match(/Journal bytes:\s*(\[[^\]]+\])/);
       const proofSizeMatch = output.match(/Estimated binary size:\s*(\d+) bytes/);
 
+      // Extract session context from journal for verification
+      let sessionBinding = null;
+      try {
+        if (journalBytesMatch) {
+          // Parse the journal bytes to extract session context
+          const journalStr = journalBytesMatch[1];
+          // Journal format: [session_id_bytes(16), request_nonce(8), ...other_data]
+          // This is a simplified extraction - in production you'd want more robust parsing
+          const sessionContextMatch = output.match(/Session ID:\s*([a-f0-9]{32})/);
+          const nonceMatch = output.match(/Request nonce:\s*(\d+)/);
+          
+          if (sessionContextMatch && nonceMatch) {
+            sessionBinding = {
+              sessionId: sessionContextMatch[1],
+              requestNonce: parseInt(nonceMatch[1], 10),
+              boundToThisSession: sessionContextMatch[1] === this.sessionId.replace(/-/g, ''),
+              isAuthentic: sessionContextMatch[1] === this.sessionId.replace(/-/g, '') && 
+                          parseInt(nonceMatch[1], 10) <= this.requestCounter
+            };
+          }
+        }
+      } catch (error) {
+        console.error('[Verify] Failed to extract session context:', error);
+      }
+
       const verificationDetails = {
         status: isSuccessful ? 'verified' : 'failed',
         extractedResult,
         verificationTimeMs: endTime - startTime,
+        sessionBinding,
         proofDetails: {
           imageId: imageIdMatch ? imageIdMatch[1] : null,
           journalBytes: journalBytesMatch ? journalBytesMatch[1] : null,
@@ -865,7 +919,9 @@ class RiscZeroCodeServer {
             text: JSON.stringify({
               verification: verificationDetails,
               note: isSuccessful ? 
-                'Proof verification successful - cryptographically authentic!' : 
+                (sessionBinding?.isAuthentic ? 
+                  'Proof verification successful - cryptographically authentic and bound to this MCP session!' :
+                  'Proof verification successful but NOT bound to this MCP session - potential spoofing detected!') :
                 'Proof verification failed'
             }, null, 2),
           },

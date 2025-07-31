@@ -100,23 +100,47 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("📋 Receipt journal length: {} bytes", receipt.journal.bytes.len());
     }
     
-    // Extract the result from the journal
+    // Extract session context from the journal (first 24 bytes)
+    println!("🔐 Extracting session context...");
+    let bytes = &receipt.journal.bytes;
+    if bytes.len() < 24 {
+        return Err("Journal too short - missing session context".into());
+    }
+    
+    // First 16 bytes: session_id
+    let session_id_bytes: [u8; 16] = [
+        bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5], bytes[6], bytes[7],
+        bytes[8], bytes[9], bytes[10], bytes[11], bytes[12], bytes[13], bytes[14], bytes[15]
+    ];
+    let session_id_hex = hex::encode(session_id_bytes);
+    
+    // Next 8 bytes: request_nonce
+    let request_nonce = u64::from_le_bytes([
+        bytes[16], bytes[17], bytes[18], bytes[19], bytes[20], bytes[21], bytes[22], bytes[23]
+    ]);
+    
+    println!("Session ID: {}", session_id_hex);
+    println!("Request nonce: {}", request_nonce);
+    
+    // Extract the result from the journal (starting after session context)
     println!("🔢 Extracting computation result...");
+    let computation_bytes = &bytes[24..]; // Skip first 24 bytes (session context)
     let result: i32 = match operation.as_str() {
         "sqrt" => {
             // For sqrt, manually decode the bytes for fixed-point values (i64)
-            let bytes = &receipt.journal.bytes;
-            if bytes.len() < 16 {
+            if computation_bytes.len() < 16 {
                 return Err("Journal too short for sqrt operation".into());
             }
             
             // First 8 bytes: input (little-endian i64 fixed-point)
             let input_fixed = i64::from_le_bytes([
-                bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5], bytes[6], bytes[7]
+                computation_bytes[0], computation_bytes[1], computation_bytes[2], computation_bytes[3], 
+                computation_bytes[4], computation_bytes[5], computation_bytes[6], computation_bytes[7]
             ]);
             // Next 8 bytes: sqrt result (little-endian i64 fixed-point)
             let sqrt_result_fixed = i64::from_le_bytes([
-                bytes[8], bytes[9], bytes[10], bytes[11], bytes[12], bytes[13], bytes[14], bytes[15]
+                computation_bytes[8], computation_bytes[9], computation_bytes[10], computation_bytes[11], 
+                computation_bytes[12], computation_bytes[13], computation_bytes[14], computation_bytes[15]
             ]);
             
             // Convert from fixed-point to decimal (scale factor 10000)
@@ -129,23 +153,26 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         },
         "modexp" => {
             // For modexp, manually decode the bytes for u64 values
-            let bytes = &receipt.journal.bytes;
-            if bytes.len() < 32 {
+            if computation_bytes.len() < 32 {
                 return Err("Journal too short for modexp operation".into());
             }
             
             // Decode four u64 values (little-endian): base, exponent, modulus, result
             let base = u64::from_le_bytes([
-                bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5], bytes[6], bytes[7]
+                computation_bytes[0], computation_bytes[1], computation_bytes[2], computation_bytes[3], 
+                computation_bytes[4], computation_bytes[5], computation_bytes[6], computation_bytes[7]
             ]);
             let exponent = u64::from_le_bytes([
-                bytes[8], bytes[9], bytes[10], bytes[11], bytes[12], bytes[13], bytes[14], bytes[15]
+                computation_bytes[8], computation_bytes[9], computation_bytes[10], computation_bytes[11], 
+                computation_bytes[12], computation_bytes[13], computation_bytes[14], computation_bytes[15]
             ]);
             let modulus = u64::from_le_bytes([
-                bytes[16], bytes[17], bytes[18], bytes[19], bytes[20], bytes[21], bytes[22], bytes[23]
+                computation_bytes[16], computation_bytes[17], computation_bytes[18], computation_bytes[19], 
+                computation_bytes[20], computation_bytes[21], computation_bytes[22], computation_bytes[23]
             ]);
             let result = u64::from_le_bytes([
-                bytes[24], bytes[25], bytes[26], bytes[27], bytes[28], bytes[29], bytes[30], bytes[31]
+                computation_bytes[24], computation_bytes[25], computation_bytes[26], computation_bytes[27], 
+                computation_bytes[28], computation_bytes[29], computation_bytes[30], computation_bytes[31]
             ]);
             
             println!("➡️  Computation result: {}^{} mod {} = {}", base, exponent, modulus, result);
@@ -153,24 +180,25 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         },
         "range" => {
             // For range proof, manually decode the bytes for boolean and u64 values
-            let bytes = &receipt.journal.bytes;
-            if bytes.len() < 28 {
+            if computation_bytes.len() < 28 {
                 return Err("Journal too short for range operation".into());
             }
             
             // First 4 bytes: in_range boolean (stored as u32)
-            let in_range = u32::from_le_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]) != 0;
+            let in_range = u32::from_le_bytes([computation_bytes[0], computation_bytes[1], computation_bytes[2], computation_bytes[3]]) != 0;
             // Next 4 bytes: above_min boolean (stored as u32)
-            let above_min = u32::from_le_bytes([bytes[4], bytes[5], bytes[6], bytes[7]]) != 0;
+            let above_min = u32::from_le_bytes([computation_bytes[4], computation_bytes[5], computation_bytes[6], computation_bytes[7]]) != 0;
             // Next 4 bytes: below_max boolean (stored as u32)
-            let below_max = u32::from_le_bytes([bytes[8], bytes[9], bytes[10], bytes[11]]) != 0;
+            let below_max = u32::from_le_bytes([computation_bytes[8], computation_bytes[9], computation_bytes[10], computation_bytes[11]]) != 0;
             // Next 8 bytes: min_value (little-endian u64)
             let min_value = u64::from_le_bytes([
-                bytes[12], bytes[13], bytes[14], bytes[15], bytes[16], bytes[17], bytes[18], bytes[19]
+                computation_bytes[12], computation_bytes[13], computation_bytes[14], computation_bytes[15], 
+                computation_bytes[16], computation_bytes[17], computation_bytes[18], computation_bytes[19]
             ]);
             // Next 8 bytes: max_value (little-endian u64)
             let max_value = u64::from_le_bytes([
-                bytes[20], bytes[21], bytes[22], bytes[23], bytes[24], bytes[25], bytes[26], bytes[27]
+                computation_bytes[20], computation_bytes[21], computation_bytes[22], computation_bytes[23], 
+                computation_bytes[24], computation_bytes[25], computation_bytes[26], computation_bytes[27]
             ]);
             
             println!("➡️  Computation result: secret ∈ [{}, {}] = {}", min_value, max_value, in_range);
@@ -179,20 +207,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         },
         _ => {
             // For decimal operations (add/multiply), manually decode the journal bytes
-            let bytes = &receipt.journal.bytes;
-            if bytes.len() < 24 {
+            if computation_bytes.len() < 24 {
                 return Err("Journal too short for decimal operation".into());
             }
             
             // Decode three i64 values (little-endian): a, b, result
             let a_fixed = i64::from_le_bytes([
-                bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5], bytes[6], bytes[7]
+                computation_bytes[0], computation_bytes[1], computation_bytes[2], computation_bytes[3], 
+                computation_bytes[4], computation_bytes[5], computation_bytes[6], computation_bytes[7]
             ]);
             let b_fixed = i64::from_le_bytes([
-                bytes[8], bytes[9], bytes[10], bytes[11], bytes[12], bytes[13], bytes[14], bytes[15]
+                computation_bytes[8], computation_bytes[9], computation_bytes[10], computation_bytes[11], 
+                computation_bytes[12], computation_bytes[13], computation_bytes[14], computation_bytes[15]
             ]);
             let result_fixed = i64::from_le_bytes([
-                bytes[16], bytes[17], bytes[18], bytes[19], bytes[20], bytes[21], bytes[22], bytes[23]
+                computation_bytes[16], computation_bytes[17], computation_bytes[18], computation_bytes[19], 
+                computation_bytes[20], computation_bytes[21], computation_bytes[22], computation_bytes[23]
             ]);
             
             // Convert from fixed-point to decimal (scale factor 10000)

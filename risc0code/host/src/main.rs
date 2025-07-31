@@ -99,29 +99,59 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Read command line arguments
     let args: Vec<String> = std::env::args().collect();
     
+    // New format: program <operation> <session_id> <request_nonce> <...computation_args>
+    if args.len() < 4 {
+        eprintln!("Usage: {} <operation> <session_id> <request_nonce> <...args>", args[0]);
+        std::process::exit(1);
+    }
+    
     let operation = &args[1];
+    let session_id_hex = &args[2];
+    let request_nonce: u64 = args[3].parse().expect("Request nonce must be a number");
+    
+    // Validate session ID format (UUID without hyphens as hex)
+    if session_id_hex.len() != 32 {
+        eprintln!("Error: Session ID must be 32 hex characters (UUID without hyphens)");
+        std::process::exit(1);
+    }
+    
+    // Parse session ID from hex
+    let session_id_bytes = hex::decode(session_id_hex)
+        .expect("Session ID must be valid hex");
+    if session_id_bytes.len() != 16 {
+        eprintln!("Error: Session ID must decode to 16 bytes");
+        std::process::exit(1);
+    }
+    
+    // Convert to fixed-size array for guest program
+    let mut session_id: [u8; 16] = [0; 16];
+    session_id.copy_from_slice(&session_id_bytes);
+    
+    eprintln!("🔐 Session ID: {}", session_id_hex);
+    eprintln!("🔢 Request nonce: {}", request_nonce);
+    
     match operation.as_str() {
         "sqrt" => {
-            if args.len() != 3 {
-                eprintln!("Usage: {} sqrt <n>", args[0]);
+            if args.len() != 5 {
+                eprintln!("Usage: {} sqrt <session_id> <request_nonce> <n>", args[0]);
                 std::process::exit(1);
             }
         }
         "modexp" => {
-            if args.len() != 5 {
-                eprintln!("Usage: {} modexp <base> <exponent> <modulus>", args[0]);
+            if args.len() != 7 {
+                eprintln!("Usage: {} modexp <session_id> <request_nonce> <base> <exponent> <modulus>", args[0]);
                 std::process::exit(1);
             }
         }
         "range" => {
-            if args.len() != 5 {
-                eprintln!("Usage: {} range <secret_number> <min> <max>", args[0]);
+            if args.len() != 7 {
+                eprintln!("Usage: {} range <session_id> <request_nonce> <secret_number> <min> <max>", args[0]);
                 std::process::exit(1);
             }
         }
         _ => {
-            if args.len() != 4 {
-                eprintln!("Usage: {} <operation> <a> <b>", args[0]);
+            if args.len() != 6 {
+                eprintln!("Usage: {} <operation> <session_id> <request_nonce> <a> <b>", args[0]);
                 eprintln!("Operations: add, multiply, sqrt, modexp, range");
                 std::process::exit(1);
             }
@@ -197,38 +227,46 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let env_start = Instant::now();
     let env = match operation.as_str() {
         "sqrt" => {
-            let n_decimal: f64 = args[2].parse().expect("Second argument must be a positive number");
+            let n_decimal: f64 = args[4].parse().expect("Fourth argument must be a positive number");
             let n_fixed = decimal_to_fixed_point(n_decimal);
             ExecutorEnv::builder()
-                .write(&n_fixed)?
+                .write(&session_id)?      // Session context first
+                .write(&request_nonce)?   // Request nonce second
+                .write(&n_fixed)?         // Then computation inputs
                 .build()?
         },
         "add" | "multiply" => {
-            let a_decimal: f64 = args[2].parse().expect("Second argument must be a number");
-            let b_decimal: f64 = args[3].parse().expect("Third argument must be a number");
+            let a_decimal: f64 = args[4].parse().expect("Fourth argument must be a number");
+            let b_decimal: f64 = args[5].parse().expect("Fifth argument must be a number");
             let a_fixed = decimal_to_fixed_point(a_decimal);
             let b_fixed = decimal_to_fixed_point(b_decimal);
             ExecutorEnv::builder()
-                .write(&a_fixed)?
+                .write(&session_id)?      // Session context first
+                .write(&request_nonce)?   // Request nonce second
+                .write(&a_fixed)?         // Then computation inputs
                 .write(&b_fixed)?
                 .build()?
         },
         "modexp" => {
-            let base: u64 = args[2].parse().expect("Base must be a positive integer");
-            let exponent: u64 = args[3].parse().expect("Exponent must be a positive integer");
-            let modulus: u64 = args[4].parse().expect("Modulus must be a positive integer");
+            let base: u64 = args[4].parse().expect("Fourth argument must be a positive integer");
+            let exponent: u64 = args[5].parse().expect("Fifth argument must be a positive integer");
+            let modulus: u64 = args[6].parse().expect("Sixth argument must be a positive integer");
             ExecutorEnv::builder()
-                .write(&base)?
+                .write(&session_id)?      // Session context first
+                .write(&request_nonce)?   // Request nonce second
+                .write(&base)?            // Then computation inputs
                 .write(&exponent)?
                 .write(&modulus)?
                 .build()?
         },
         "range" => {
-            let secret_number: u64 = args[2].parse().expect("Secret number must be a positive integer");
-            let min_value: u64 = args[3].parse().expect("Min value must be a positive integer");
-            let max_value: u64 = args[4].parse().expect("Max value must be a positive integer");
+            let secret_number: u64 = args[4].parse().expect("Fourth argument must be a positive integer");
+            let min_value: u64 = args[5].parse().expect("Fifth argument must be a positive integer");
+            let max_value: u64 = args[6].parse().expect("Sixth argument must be a positive integer");
             ExecutorEnv::builder()
-                .write(&secret_number)?
+                .write(&session_id)?      // Session context first
+                .write(&request_nonce)?   // Request nonce second
+                .write(&secret_number)?   // Then computation inputs
                 .write(&min_value)?
                 .write(&max_value)?
                 .build()?
@@ -399,6 +437,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     
     eprintln!("🔄 Outputting JSON result...");
     
+    // Get current timestamp for consistent use
+    let timestamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+    
     // Print results in JSON format for easy parsing
     let id_bytes: &[u8] = unsafe { 
         std::slice::from_raw_parts(image_id.as_ptr() as *const u8, mem::size_of_val(&image_id))
@@ -412,11 +456,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let size = receipt_bytes.len();
         
         // Save proof to binary file
-        let timestamp = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_secs();
-        let proof_filename = format!("proof_{}_{}.bin", operation, timestamp);
+        let proof_filename = format!("proof_{}_{}_{}.bin", operation, session_id_hex, timestamp);
         match std::fs::write(&proof_filename, &receipt_bytes) {
             Ok(_) => eprintln!("📁 Full receipt proof saved to: {}", proof_filename),
             Err(e) => eprintln!("⚠️  Failed to save proof file: {}", e),
@@ -428,25 +468,32 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
     
     println!("{{");
+    // Include session context in output
+    println!("  \"session_context\": {{");
+    println!("    \"session_id\": \"{}\",", session_id_hex);
+    println!("    \"request_nonce\": {},", request_nonce);
+    println!("    \"timestamp\": {}", timestamp);
+    println!("  }},");
+    
     match operation.as_str() {
         "sqrt" => {
-            let n_decimal: f64 = args[2].parse().expect("Second argument must be a positive number");
+            let n_decimal: f64 = args[4].parse().expect("Fourth argument must be a positive number");
             println!("  \"inputs\": {{ \"n\": {} }},", n_decimal);
         },
         "add" | "multiply" => {
-            let a_decimal: f64 = args[2].parse().expect("Second argument must be a number");
-            let b_decimal: f64 = args[3].parse().expect("Third argument must be a number");
+            let a_decimal: f64 = args[4].parse().expect("Fourth argument must be a number");
+            let b_decimal: f64 = args[5].parse().expect("Fifth argument must be a number");
             println!("  \"inputs\": {{ \"a\": {}, \"b\": {} }},", a_decimal, b_decimal);
         },
         "modexp" => {
-            let base: u64 = args[2].parse().expect("Base must be a positive integer");
-            let exponent: u64 = args[3].parse().expect("Exponent must be a positive integer");
-            let modulus: u64 = args[4].parse().expect("Modulus must be a positive integer");
+            let base: u64 = args[4].parse().expect("Fourth argument must be a positive integer");
+            let exponent: u64 = args[5].parse().expect("Fifth argument must be a positive integer");
+            let modulus: u64 = args[6].parse().expect("Sixth argument must be a positive integer");
             println!("  \"inputs\": {{ \"base\": {}, \"exponent\": {}, \"modulus\": {} }},", base, exponent, modulus);
         },
         "range" => {
-            let min_value: u64 = args[3].parse().expect("Min value must be a positive integer");
-            let max_value: u64 = args[4].parse().expect("Max value must be a positive integer");
+            let min_value: u64 = args[5].parse().expect("Fifth argument must be a positive integer");
+            let max_value: u64 = args[6].parse().expect("Sixth argument must be a positive integer");
             println!("  \"inputs\": {{ \"min\": {}, \"max\": {} }},", min_value, max_value);
         },
         _ => {
