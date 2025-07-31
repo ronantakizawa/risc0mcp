@@ -1,4 +1,4 @@
-use methods::{ADDITION_ELF, ADDITION_ID, MULTIPLY_GUEST_ELF, MULTIPLY_GUEST_ID, SQRT_GUEST_ELF, SQRT_GUEST_ID, MODEXP_GUEST_ELF, MODEXP_GUEST_ID};
+use methods::{ADDITION_ELF, ADDITION_ID, MULTIPLY_GUEST_ELF, MULTIPLY_GUEST_ID, SQRT_GUEST_ELF, SQRT_GUEST_ID, MODEXP_GUEST_ELF, MODEXP_GUEST_ID, GUEST_RANGE_ELF, GUEST_RANGE_ID};
 use risc0_zkvm::{default_prover, ExecutorEnv};
 use std::mem;
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
@@ -113,10 +113,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 std::process::exit(1);
             }
         }
+        "range" => {
+            if args.len() != 5 {
+                eprintln!("Usage: {} range <secret_number> <min> <max>", args[0]);
+                std::process::exit(1);
+            }
+        }
         _ => {
             if args.len() != 4 {
                 eprintln!("Usage: {} <operation> <a> <b>", args[0]);
-                eprintln!("Operations: add, multiply, sqrt, modexp");
+                eprintln!("Operations: add, multiply, sqrt, modexp, range");
                 std::process::exit(1);
             }
         }
@@ -164,8 +170,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             };
             (MODEXP_GUEST_ELF, MODEXP_GUEST_ID, "^", format!("{}^{} mod {}", base, exponent, modulus), expected_result as i64, "integer")
         },
+        "range" => {
+            let secret_number: u64 = args[2].parse().expect("Secret number must be a positive integer");
+            let min_value: u64 = args[3].parse().expect("Min value must be a positive integer");
+            let max_value: u64 = args[4].parse().expect("Max value must be a positive integer");
+            let expected_result = if secret_number >= min_value && secret_number <= max_value { 1 } else { 0 };
+            (GUEST_RANGE_ELF, GUEST_RANGE_ID, "∈", format!("secret ∈ [{}, {}]", min_value, max_value), expected_result as i64, "range")
+        },
         _ => {
-            eprintln!("Error: Unknown operation '{}'. Use 'add', 'multiply', 'sqrt', or 'modexp'.", operation);
+            eprintln!("Error: Unknown operation '{}'. Use 'add', 'multiply', 'sqrt', 'modexp', or 'range'.", operation);
             std::process::exit(1);
         }
     };
@@ -208,6 +221,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .write(&base)?
                 .write(&exponent)?
                 .write(&modulus)?
+                .build()?
+        },
+        "range" => {
+            let secret_number: u64 = args[2].parse().expect("Secret number must be a positive integer");
+            let min_value: u64 = args[3].parse().expect("Min value must be a positive integer");
+            let max_value: u64 = args[4].parse().expect("Max value must be a positive integer");
+            ExecutorEnv::builder()
+                .write(&secret_number)?
+                .write(&min_value)?
+                .write(&max_value)?
                 .build()?
         },
         _ => {
@@ -313,6 +336,32 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             eprintln!("🔢 Computation result: {}^{} mod {} = {}", base, exponent, modulus, result);
             (result as f64, result as i64)
         },
+        "range" => {
+            // For range proof, manually decode the bytes for boolean and u64 values
+            let bytes = &receipt.journal.bytes;
+            if bytes.len() < 28 {
+                return Err("Journal too short for range operation".into());
+            }
+            
+            // First 4 bytes: in_range boolean (stored as u32)
+            let in_range = u32::from_le_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]) != 0;
+            // Next 4 bytes: above_min boolean (stored as u32)
+            let above_min = u32::from_le_bytes([bytes[4], bytes[5], bytes[6], bytes[7]]) != 0;
+            // Next 4 bytes: below_max boolean (stored as u32)
+            let below_max = u32::from_le_bytes([bytes[8], bytes[9], bytes[10], bytes[11]]) != 0;
+            // Next 8 bytes: min_value (little-endian u64)
+            let min_value = u64::from_le_bytes([
+                bytes[12], bytes[13], bytes[14], bytes[15], bytes[16], bytes[17], bytes[18], bytes[19]
+            ]);
+            // Next 8 bytes: max_value (little-endian u64)
+            let max_value = u64::from_le_bytes([
+                bytes[20], bytes[21], bytes[22], bytes[23], bytes[24], bytes[25], bytes[26], bytes[27]
+            ]);
+            
+            eprintln!("🔢 Range proof result: secret ∈ [{}, {}] = {}", min_value, max_value, in_range);
+            eprintln!("🔍 Details: above_min={}, below_max={}", above_min, below_max);
+            (if in_range { 1.0 } else { 0.0 }, if in_range { 1 } else { 0 })
+        },
         _ => {
             return Err("Unknown operation".into());
         }
@@ -362,13 +411,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let receipt_hex = hex::encode(&receipt_bytes);
         let size = receipt_bytes.len();
         
-        // Save proof to file
+        // Save proof to binary file
         let timestamp = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()
             .as_secs();
-        let proof_filename = format!("proof_{}_{}.hex", operation, timestamp);
-        match std::fs::write(&proof_filename, &receipt_hex) {
+        let proof_filename = format!("proof_{}_{}.bin", operation, timestamp);
+        match std::fs::write(&proof_filename, &receipt_bytes) {
             Ok(_) => eprintln!("📁 Full receipt proof saved to: {}", proof_filename),
             Err(e) => eprintln!("⚠️  Failed to save proof file: {}", e),
         }
@@ -394,6 +443,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let exponent: u64 = args[3].parse().expect("Exponent must be a positive integer");
             let modulus: u64 = args[4].parse().expect("Modulus must be a positive integer");
             println!("  \"inputs\": {{ \"base\": {}, \"exponent\": {}, \"modulus\": {} }},", base, exponent, modulus);
+        },
+        "range" => {
+            let min_value: u64 = args[3].parse().expect("Min value must be a positive integer");
+            let max_value: u64 = args[4].parse().expect("Max value must be a positive integer");
+            println!("  \"inputs\": {{ \"min\": {}, \"max\": {} }},", min_value, max_value);
         },
         _ => {
             println!("  \"inputs\": {{ \"unknown\": true }},");

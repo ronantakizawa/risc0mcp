@@ -1,13 +1,13 @@
-use methods::{ADDITION_ID, MULTIPLY_GUEST_ID, SQRT_GUEST_ID, MODEXP_GUEST_ID};
+use methods::{ADDITION_ID, MULTIPLY_GUEST_ID, SQRT_GUEST_ID, MODEXP_GUEST_ID, GUEST_RANGE_ID};
 use risc0_zkvm::Receipt;
 use std::fs;
 use clap::Parser;
 
 #[derive(Parser)]
 #[command(name = "verify")]
-#[command(about = "Verify RISC Zero proofs from hex files")]
+#[command(about = "Verify RISC Zero proofs from .bin or .hex files")]
 struct Args {
-    /// Path to the hex proof file
+    /// Path to the proof file (.bin or .hex)
     #[arg(short, long)]
     file: String,
     
@@ -34,7 +34,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let operation = if let Some(op) = args.operation {
         op
     } else {
-        // Auto-detect from filename (e.g., proof_multiply_3_2.hex)
+        // Auto-detect from filename (e.g., proof_multiply_3_2.bin or proof_multiply_3_2.hex)
         let filename = std::path::Path::new(&args.file)
             .file_name()
             .and_then(|n| n.to_str())
@@ -46,6 +46,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             "sqrt".to_string()
         } else if filename.contains("modexp") {
             "modexp".to_string()
+        } else if filename.contains("range") {
+            "range".to_string()
         } else {
             "add".to_string() // default
         }
@@ -55,23 +57,35 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "multiply" => (MULTIPLY_GUEST_ID, "multiplication"),
         "sqrt" => (SQRT_GUEST_ID, "square root"),
         "modexp" => (MODEXP_GUEST_ID, "modular exponentiation"),
+        "range" => (GUEST_RANGE_ID, "range proof"),
         _ => (ADDITION_ID, "addition"),
     };
     
-    // Read the hex file
+    // Read the proof file (detect format by extension)
     println!("📁 Reading proof file: {}", args.file);
     println!("🔧 Detected operation: {}", op_name);
-    let hex_content = fs::read_to_string(&args.file)?;
-    let hex_content = hex_content.trim();
     
-    if args.verbose {
-        println!("📊 Hex file size: {} characters", hex_content.len());
-        println!("📦 Estimated binary size: {} bytes", hex_content.len() / 2);
-    }
-    
-    // Decode hex to bytes
-    println!("🔄 Decoding hex data...");
-    let receipt_bytes = hex::decode(hex_content)?;
+    let receipt_bytes = if args.file.ends_with(".bin") {
+        // Read binary file directly
+        println!("🔄 Reading binary data...");
+        let bytes = fs::read(&args.file)?;
+        if args.verbose {
+            println!("📊 Binary file size: {} bytes", bytes.len());
+        }
+        bytes
+    } else {
+        // Assume hex format for backward compatibility
+        println!("🔄 Reading hex file and decoding...");
+        let hex_content = fs::read_to_string(&args.file)?;
+        let hex_content = hex_content.trim();
+        
+        if args.verbose {
+            println!("📊 Hex file size: {} characters", hex_content.len());
+            println!("📦 Estimated binary size: {} bytes", hex_content.len() / 2);
+        }
+        
+        hex::decode(hex_content)?
+    };
     
     if args.verbose {
         println!("✅ Successfully decoded {} bytes", receipt_bytes.len());
@@ -136,6 +150,32 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             
             println!("➡️  Computation result: {}^{} mod {} = {}", base, exponent, modulus, result);
             result as i32
+        },
+        "range" => {
+            // For range proof, manually decode the bytes for boolean and u64 values
+            let bytes = &receipt.journal.bytes;
+            if bytes.len() < 28 {
+                return Err("Journal too short for range operation".into());
+            }
+            
+            // First 4 bytes: in_range boolean (stored as u32)
+            let in_range = u32::from_le_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]) != 0;
+            // Next 4 bytes: above_min boolean (stored as u32)
+            let above_min = u32::from_le_bytes([bytes[4], bytes[5], bytes[6], bytes[7]]) != 0;
+            // Next 4 bytes: below_max boolean (stored as u32)
+            let below_max = u32::from_le_bytes([bytes[8], bytes[9], bytes[10], bytes[11]]) != 0;
+            // Next 8 bytes: min_value (little-endian u64)
+            let min_value = u64::from_le_bytes([
+                bytes[12], bytes[13], bytes[14], bytes[15], bytes[16], bytes[17], bytes[18], bytes[19]
+            ]);
+            // Next 8 bytes: max_value (little-endian u64)
+            let max_value = u64::from_le_bytes([
+                bytes[20], bytes[21], bytes[22], bytes[23], bytes[24], bytes[25], bytes[26], bytes[27]
+            ]);
+            
+            println!("➡️  Computation result: secret ∈ [{}, {}] = {}", min_value, max_value, in_range);
+            println!("🔍 Range check details: above_min={}, below_max={}", above_min, below_max);
+            if in_range { 1 } else { 0 }
         },
         _ => {
             // For decimal operations (add/multiply), manually decode the journal bytes

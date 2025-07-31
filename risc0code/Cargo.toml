@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["host", "methods", "verify", "methods/guest-multiply", "methods/guest-sqrt", "methods/guest-modexp"]
+members = ["host", "methods", "verify", "methods/guest-multiply", "methods/guest-sqrt", "methods/guest-modexp", "methods/guest-range"]
 
 # Always optimize; building and running the guest takes much longer without optimization.
 [profile.dev]

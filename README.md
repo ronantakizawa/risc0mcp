@@ -1,17 +1,17 @@
 # RISC Zero Code MCP Server
 
-A Model Context Protocol (MCP) server that provides zero-knowledge proof computation using RISC Zero zkVM. This server supports multiple mathematical operations with cryptographic proof generation, including addition, multiplication, square root, and modular exponentiation.
+A Model Context Protocol (MCP) server that provides zero-knowledge proof computation using RISC Zero zkVM. This server supports multiple mathematical operations with cryptographic proof generation, including addition, multiplication, square root, modular exponentiation, and range proofs.
 
 ## Features
 
 - **Zero-Knowledge Proofs**: Generate real ZK-STARK proofs for mathematical computations
-- **Multiple Operations**: Support for addition, multiplication, square root, and modular exponentiation
+- **Multiple Operations**: Support for addition, multiplication, square root, modular exponentiation, and range proofs
 - **Production Mode**: Always runs in production mode for authentic cryptographic proofs
 - **MCP Integration**: Compatible with MCP clients and tools
 - **Proof Persistence**: Saves proof data to timestamped files for verification and archival
 - **Fast Execution**: Optimized for quick response times (~20ms after initial build)
 - **Decimal Support**: High-precision decimal arithmetic for addition, multiplication, and square root
-- **Cryptographic Applications**: Modular exponentiation for cryptographic use cases
+- **Cryptographic Applications**: Modular exponentiation for cryptographic use cases and range proofs for privacy-preserving verification
 
 ## Architecture
 
@@ -22,6 +22,7 @@ The project consists of:
   - Multiplication computation (`methods/guest-multiply/src/main.rs`)
   - Square root computation (`methods/guest-sqrt/src/main.rs`)
   - Modular exponentiation computation (`methods/guest-modexp/src/main.rs`)
+  - Range proof computation (`methods/guest-range/src/main.rs`)
 - **RISC Zero Host Program** (`host/src/main.rs`): Proof generation and verification
 - **Verification Tool** (`verify/src/main.rs`): Independent proof verification
 
@@ -137,6 +138,35 @@ Performs modular exponentiation (a^b mod n) using RISC Zero zkVM and returns the
 }
 ```
 
+#### `zkvm_range`
+Proves that a secret number is within a specified range using RISC Zero zkVM without revealing the secret number. This is a zero-knowledge range proof ideal for privacy-preserving applications.
+
+**Parameters:**
+- `secretNumber` (number): Secret number to prove is in range (will remain private) - must be a non-negative integer
+- `minValue` (number): Minimum value of the range (inclusive) - must be a non-negative integer
+- `maxValue` (number): Maximum value of the range (inclusive) - must be a non-negative integer
+- `forceRebuild` (boolean, optional): Whether to rebuild the project from scratch
+
+**Response:**
+```json
+{
+  "computation": {
+    "operation": "range",
+    "inputs": { "minValue": 18, "maxValue": 65 },
+    "result": true,
+    "expected": true,
+    "correct": true
+  },
+  "zkProof": {
+    "mode": "Production (real ZK proof)",
+    "imageId": "273370e37f4cb8e7268495b9b54c0c2c12a1eab3683c88137bf30a45e2ce6719",
+    "verificationStatus": "verified",
+    "proofFilePath": "/path/to/proof_range_1753877372.hex"
+  },
+  "note": "The secret number remains private - only the range membership result is revealed"
+}
+```
+
 #### `verify_proof`
 Verifies a RISC Zero proof from a hex file and extracts the computation result. Automatically detects the operation type from the filename.
 
@@ -189,6 +219,9 @@ cd risc0code
 
 # Test modular exponentiation with integers
 ./target/release/host modexp 2 10 1000
+
+# Test range proof with integers (secret remains private)
+./target/release/host range 25 18 65
 ```
 
 ## Proof Files
@@ -200,6 +233,7 @@ Generated proofs are saved as timestamped hex files in the project directory:
   - `proof_multiply_1753873521.hex`
   - `proof_sqrt_1753873522.hex`
   - `proof_modexp_1753873523.hex`
+  - `proof_range_1753877372.hex`
 - Contains: Complete serialized receipt data
 - Can be used for independent verification
 
@@ -216,6 +250,7 @@ cargo build --release --bin verify
 ./target/release/verify --file proof_multiply_1753873521.hex --verbose
 ./target/release/verify --file proof_sqrt_1753873522.hex --verbose
 ./target/release/verify --file proof_modexp_1753873523.hex --verbose
+./target/release/verify --file proof_range_1753877372.hex --verbose
 
 # Verify with expected result
 ./target/release/verify --file proof_modexp_1753873523.hex --expected 24
@@ -235,9 +270,10 @@ Example output:
 ```
 🔍 RISC Zero Proof Verifier
 ══════════════════════════
-📁 Reading proof file: proof_modexp_1753873523.hex
-🔧 Detected operation: modular exponentiation
-➡️  Computation result: 2^10 mod 1000 = 24
+📁 Reading proof file: proof_range_1753877372.hex
+🔧 Detected operation: range proof
+➡️  Computation result: secret ∈ [18, 65] = true
+🔍 Range check details: above_min=true, below_max=true
 🔐 Verifying cryptographic proof...
 🎉 PROOF VERIFICATION SUCCESSFUL! (13.15ms)
 ✨ This proof is cryptographically valid and authentic
@@ -274,6 +310,7 @@ This server generates authentic ZK-STARK proofs using RISC Zero's zkVM:
   - **Multiplication**: Decimal numbers with 4 decimal places precision
   - **Square Root**: Decimal numbers using binary search algorithm
   - **Modular Exponentiation**: Integer operations using binary exponentiation for cryptographic applications
+  - **Range Proofs**: Privacy-preserving proofs that a secret number is within a specified range without revealing the number
 - **Verification**: Cryptographically verifiable proofs
 - **Security**: Production-grade zero-knowledge proofs
 - **Fixed-Point Arithmetic**: Uses scale factor of 10,000 for decimal precision

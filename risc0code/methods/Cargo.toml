@@ -7,4 +7,4 @@ edition = "2021"
 risc0-build = { version = "^2.3.1" }
 
 [package.metadata.risc0]
-methods = ["guest", "guest-multiply", "guest-sqrt", "guest-modexp"]
+methods = ["guest", "guest-multiply", "guest-sqrt", "guest-modexp", "guest-range"]

@@ -142,14 +142,41 @@ class RiscZeroCodeServer {
           },
         },
         {
+          name: 'zkvm_range',
+          description: 'Prove that a secret number is within a specified range using RISC Zero zkVM without revealing the secret number',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              secretNumber: {
+                type: 'number',
+                description: 'Secret number to prove is in range (will remain private)',
+              },
+              minValue: {
+                type: 'number',
+                description: 'Minimum value of the range (inclusive)',
+              },
+              maxValue: {
+                type: 'number',
+                description: 'Maximum value of the range (inclusive)',
+              },
+              forceRebuild: {
+                type: 'boolean',
+                description: 'Whether to rebuild the project from scratch (slower but ensures fresh build)',
+                default: false
+              }
+            },
+            required: ['secretNumber', 'minValue', 'maxValue'],
+          },
+        },
+        {
           name: 'verify_proof',
-          description: 'Verify a RISC Zero proof from a hex file and extract the computation result',
+          description: 'Verify a RISC Zero proof from a .bin file and extract the computation result',
           inputSchema: {
             type: 'object',
             properties: {
               proofFilePath: {
                 type: 'string',
-                description: 'Path to the .hex proof file to verify',
+                description: 'Path to the .bin proof file to verify',
               }
             },
             required: ['proofFilePath'],
@@ -169,6 +196,8 @@ class RiscZeroCodeServer {
             return await this.performZkVmSqrt(request.params.arguments);
           case 'zkvm_modexp':
             return await this.performZkVmModexp(request.params.arguments);
+          case 'zkvm_range':
+            return await this.performZkVmRange(request.params.arguments);
           case 'verify_proof':
             return await this.verifyProof(request.params.arguments);
           default:
@@ -621,6 +650,140 @@ class RiscZeroCodeServer {
     }
   }
 
+  async performZkVmRange(args: any) {
+    const { secretNumber, minValue, maxValue, forceRebuild = false } = args;
+
+    if (typeof secretNumber !== 'number' || typeof minValue !== 'number' || typeof maxValue !== 'number' || 
+        secretNumber < 0 || minValue < 0 || maxValue < 0 || 
+        !Number.isInteger(secretNumber) || !Number.isInteger(minValue) || !Number.isInteger(maxValue) ||
+        minValue > maxValue) {
+      throw new McpError(
+        ErrorCode.InvalidParams,
+        'secretNumber, minValue, and maxValue must be non-negative integers, and minValue <= maxValue'
+      );
+    }
+
+    try {
+      console.error(`[API] Starting zkVM range proof: secret ∈ [${minValue}, ${maxValue}] (production mode)`);
+      
+      // Ensure the RISC Zero project exists and is built
+      await this.ensureProjectExists(forceRebuild);
+      
+      console.error(`[API] Project ready, executing range proof computation...`);
+      const hostBinary = path.join(this.projectPath, 'target', 'release', 'host');
+      
+      const env = {
+        ...process.env,
+        RISC0_DEV_MODE: '0', // Always production mode
+        RUST_LOG: 'info'
+      };
+
+      // Check if host binary exists
+      if (fs.existsSync(hostBinary)) {
+        console.error(`[API] Host binary found at: ${hostBinary}`);
+      } else {
+        console.error(`[API] ERROR: Host binary not found at: ${hostBinary}`);
+        throw new Error(`Host binary not found. Please run 'cargo build --release' in ${this.projectPath}`);
+      }
+
+      console.error(`[API] Starting binary execution...`);
+      const startTime = Date.now();
+
+      // Use the pre-built binary directly to avoid build time
+      const command = `${hostBinary} range ${secretNumber} ${minValue} ${maxValue}`;
+      
+      let result;
+      
+      try {
+        const execResult = await execAsync(command, { 
+          cwd: this.projectPath, 
+          env,
+          timeout: 60000 // Should complete within MCP inspector timeout now
+        });
+        
+        const endTime = Date.now();
+        console.error(`[API] Binary execution completed in ${endTime - startTime}ms`);
+
+        // Parse the JSON output from the host program
+        try {
+          // Extract JSON from stdout (skip log lines, find the { } block)
+          const lines = execResult.stdout.split('\n');
+          let jsonStart = -1;
+          let jsonEnd = -1;
+          
+          // Find the line that starts with '{'
+          for (let i = 0; i < lines.length; i++) {
+            if (lines[i].trim().startsWith('{')) {
+              jsonStart = i;
+              break;
+            }
+          }
+          
+          // Find the line that ends with '}'
+          for (let i = lines.length - 1; i >= 0; i--) {
+            if (lines[i].trim().endsWith('}')) {
+              jsonEnd = i;
+              break;
+            }
+          }
+          
+          if (jsonStart >= 0 && jsonEnd >= 0) {
+            const jsonLines = lines.slice(jsonStart, jsonEnd + 1);
+            const jsonString = jsonLines.join('\n');
+            
+            result = JSON.parse(jsonString);
+            console.error(`[API] JSON parsed successfully:`, result);
+          } else {
+            throw new Error('Could not find JSON block in output');
+          }
+        } catch (parseError) {
+          console.error(`[API] JSON parse failed:`, parseError);
+          // If JSON parsing fails, return raw output
+          result = {
+            error: 'Failed to parse program output',
+            raw_output: execResult.stdout,
+            raw_stderr: execResult.stderr
+          };
+        }
+      } catch (execError) {
+        console.error(`[API] Execution failed:`, execError);
+        throw execError;
+      }
+      
+      // Calculate expected result for validation
+      const expectedResult = secretNumber >= minValue && secretNumber <= maxValue;
+      
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              computation: {
+                operation: 'range',
+                inputs: { minValue, maxValue },
+                result: result.result === 1,
+                expected: expectedResult,
+                correct: (result.result === 1) === expectedResult
+              },
+              zkProof: {
+                mode: 'Production (real ZK proof)',
+                imageId: result.image_id,
+                verificationStatus: result.verification_status,
+                proofFilePath: result.proof_file_path ? path.resolve(this.projectPath, result.proof_file_path) : null
+              },
+              note: 'The secret number remains private - only the range membership result is revealed'
+            }, null, 2),
+          },
+        ],
+      };
+    } catch (error) {
+      throw new McpError(
+        ErrorCode.InternalError,
+        `Failed to perform zkVM range proof: ${error instanceof Error ? error.message : String(error)}`
+      );
+    }
+  }
+
   async verifyProof(args: any) {
     const { proofFilePath } = args;
 
@@ -692,9 +855,7 @@ class RiscZeroCodeServer {
           journalBytes: journalBytesMatch ? journalBytesMatch[1] : null,
           proofSizeBytes: proofSizeMatch ? parseInt(proofSizeMatch[1], 10) : null,
           verificationTime
-        },
-        rawOutput: output,
-        rawStderr: stderr
+        }
       };
 
       return {
