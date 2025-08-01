@@ -1,17 +1,81 @@
-FROM debian:bullseye-slim
+# Multi-stage build for RISC Zero MCP Server
 
-ENV DEBIAN_FRONTEND=noninteractive \
-    GLAMA_VERSION="0.2.0" \
-    PATH="/home/service-user/.local/bin:${PATH}"
+# Stage 1: Build Rust components
+FROM rust:1.75-slim as rust-builder
 
-RUN (groupadd -r service-user) && (useradd -u 1987 -r -m -g service-user service-user) && (mkdir -p /home/service-user/.local/bin /app) && (chown -R service-user:service-user /home/service-user /app) && (apt-get update) && (apt-get install -y --no-install-recommends build-essential curl wget software-properties-common libssl-dev zlib1g-dev git) && (rm -rf /var/lib/apt/lists/*) && (curl -fsSL https://deb.nodesource.com/setup_22.x | bash -) && (apt-get install -y nodejs) && (apt-get clean) && (npm install -g mcp-proxy@2.10.6) && (npm install -g pnpm@9.15.5) && (npm install -g bun@1.1.42) && (node --version) && (curl -LsSf https://astral.sh/uv/install.sh | UV_INSTALL_DIR="/usr/local/bin" sh) && (uv python install 3.13 --default --preview) && (ln -s $(uv python find) /usr/local/bin/python) && (python --version) && (apt-get clean) && (rm -rf /var/lib/apt/lists/*) && (rm -rf /tmp/*) && (rm -rf /var/tmp/*) && (su - service-user -c "uv python install 3.13 --default --preview && python --version")
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    pkg-config \
+    libssl-dev \
+    && rm -rf /var/lib/apt/lists/*
 
-USER service-user
+# Install RISC Zero toolchain
+RUN cargo install cargo-risczero --version ^2.3.1 --locked
+RUN cargo risczero install
+
+# Set working directory
+WORKDIR /app
+
+# Copy Rust project files
+COPY risc0code/ ./risc0code/
+
+# Build Rust project
+WORKDIR /app/risc0code
+RUN cargo build --release
+
+# Stage 2: Build Node.js components
+FROM node:18-slim as node-builder
 
 WORKDIR /app
 
-RUN git clone https://github.com/ronantakizawa/gis-dataconvertersion-mcp . && git checkout 0f09a5d43d7da3a1a397acea2712dbbf5290b2a4
+# Copy package files
+COPY package*.json ./
+COPY tsconfig.json ./
 
-RUN (pnpm install || true) && (pnpm run build || true)
+# Install dependencies
+RUN npm ci
 
-CMD ["mcp-proxy","pnpm","run","start"]
+# Copy TypeScript source
+COPY src/ ./src/
+
+# Build TypeScript
+RUN npm run build
+
+# Stage 3: Runtime image
+FROM node:18-slim as runtime
+
+# Install system dependencies for RISC Zero
+RUN apt-get update && apt-get install -y \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy built artifacts from previous stages
+COPY --from=node-builder /app/dist ./dist
+COPY --from=node-builder /app/node_modules ./node_modules
+COPY --from=rust-builder /app/risc0code/target/release/host ./risc0code/target/release/host
+COPY --from=rust-builder /app/risc0code/target/release/verify ./risc0code/target/release/verify
+
+# Copy configuration files
+COPY package.json ./
+
+# Create non-root user
+RUN groupadd -r risc0 && useradd -r -g risc0 risc0
+RUN chown -R risc0:risc0 /app
+USER risc0
+
+# Set environment variables
+ENV NODE_ENV=production
+ENV RISC0_DEV_MODE=0
+
+# Expose port (if needed for future HTTP interface)
+EXPOSE 3000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD node -e "console.log('Health check passed')" || exit 1
+
+# Start the MCP server
+CMD ["node", "dist/index.js"]

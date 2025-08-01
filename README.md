@@ -1,17 +1,23 @@
-# RISC Zero Code MCP Server
+# RISC Zero MCP Server
 
-A Model Context Protocol (MCP) server that provides zero-knowledge proof computation using RISC Zero zkVM. This server supports multiple mathematical operations with cryptographic proof generation, including addition, multiplication, square root, modular exponentiation, and range proofs.
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?style=flat&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![Rust](https://img.shields.io/badge/Rust-000000?style=flat&logo=rust&logoColor=white)](https://www.rust-lang.org/)
+
+A Model Context Protocol (MCP) server that provides zero-knowledge proof computation using RISC Zero zkVM. This server supports dynamic Rust code execution, pre-built mathematical operations, and cryptographic proof generation with real image ID verification.
 
 ## Features
 
-- **Zero-Knowledge Proofs**: Generate real ZK-STARK proofs for mathematical computations
-- **Multiple Operations**: Support for addition, multiplication, square root, modular exponentiation, and range proofs
-- **Production Mode**: Always runs in production mode for authentic cryptographic proofs
-- **MCP Integration**: Compatible with MCP clients and tools
-- **Proof Persistence**: Saves proof data to timestamped files for verification and archival
-- **Fast Execution**: Optimized for quick response times (~20ms after initial build)
-- **Decimal Support**: High-precision decimal arithmetic for addition, multiplication, and square root
-- **Cryptographic Applications**: Modular exponentiation for cryptographic use cases and range proofs for privacy-preserving verification
+- **🚀 Dynamic Rust Execution**: Compile and execute arbitrary Rust code in the zkVM
+- **🔐 Zero-Knowledge Proofs**: Generate real ZK-STARK proofs with authentic image ID verification
+- **📚 Pre-built Operations**: Addition, multiplication, square root, modular exponentiation, and range proofs
+- **🏭 Production & Development Modes**: Full ZK-STARK proofs or fast development execution
+- **🔗 MCP Integration**: Compatible with Claude and other MCP clients
+- **💾 Proof Persistence**: Timestamped binary proof files for verification and archival
+- **⚡ Optimized Performance**: ~3-5 seconds for proof generation after initial build
+- **🔢 High-Precision Arithmetic**: Fixed-point decimal support for mathematical operations
+- **🔒 Real Image ID Verification**: Cryptographically authentic image IDs computed from ELF data
+- **🐳 Docker-based Compilation**: Consistent RISC-V cross-compilation environment
 
 ## Architecture
 
@@ -28,9 +34,11 @@ The project consists of:
 
 ## Prerequisites
 
-- Node.js 18+ 
-- Rust toolchain
-- RISC Zero toolkit
+- **Node.js 18+** with npm
+- **Rust toolchain** (1.70+) with cargo
+- **RISC Zero toolkit** (`cargo install cargo-risczero && cargo risczero install`)
+- **Docker** (for dynamic Rust compilation)
+- **Git** (for cloning the repository)
 
 ## Installation
 
@@ -67,6 +75,61 @@ node dist/index.js
 ```
 
 ### Available Tools
+
+#### `zkvm_run_rust_file`
+**NEW**: Compiles and executes a Rust file in RISC Zero zkVM with zero-knowledge proof generation.
+
+**Parameters:**
+- `filepath` (string): Path to the Rust source file to compile and execute
+- `inputs` (object): JSON inputs to pass to the guest program
+
+**Response:**
+```json
+{
+  "computation": {
+    "operation": "dynamic_rust",
+    "codeHash": "5209888b6be4687c",
+    "inputs": [2],
+    "result": 1,
+    "executionTimeMs": 3021
+  },
+  "zkProof": {
+    "mode": "Production (real ZK proof)",
+    "imageId": "4d48e6780c51ffda178cd619c09e6349e244ed9ec2bd7a95db4be498dec8b6d6",
+    "verificationStatus": "verified",
+    "proofFilePath": "/path/to/proof_precompiled_1754056003.bin"
+  },
+  "dynamicExecution": {
+    "tempGuestName": "guest-dynamic-5209888b6be4687c",
+    "codeLength": 1275,
+    "successful": true
+  }
+}
+```
+
+#### `zkvm_run_rust_code`
+**NEW**: Compiles and executes Rust code provided as text in RISC Zero zkVM with zero-knowledge proof generation.
+
+**Parameters:**
+- `code` (string): Rust source code to compile and execute
+- `inputs` (object): JSON inputs to pass to the guest program
+
+**Example Rust Code:**
+```rust
+use risc0_zkvm::guest::env;
+
+fn main() {
+    let inputs_json: String = env::read();
+    let inputs: Vec<i64> = serde_json::from_str(&inputs_json).unwrap();
+    let n = inputs[0];
+    let result = fibonacci(n);
+    env::commit(&result);
+}
+
+fn fibonacci(n: i64) -> i64 {
+    if n <= 1 { n } else { fibonacci(n-1) + fibonacci(n-2) }
+}
+```
 
 #### `zkvm_add`
 Performs addition of two decimal numbers using RISC Zero zkVM and returns the result with ZK proof receipt.
@@ -195,39 +258,34 @@ Verifies a RISC Zero proof from a .bin or .hex file and extracts the computation
 
 ## Testing
 
-Test the server with the included test scripts:
-```bash
-# Test zkvm_add function
-node test-simple.js
-
-# Test verify_proof function
-node test-verify.js
-```
-
-You can also test operations directly using the host program (requires session context):
+### Manual Testing
+Test individual operations directly using the host program:
 ```bash
 cd risc0code
 
-# Note: Direct host testing requires session context parameters
-# Format: ./target/release/host <operation> <session_id_hex> <nonce> <...args>
+# Test dynamic Rust execution
+./target/release/host dynamic ./test_dynamic_rust.rs '{"n": 10}'
 
-# Test addition with decimals (using example session ID)
-./target/release/host add a1b2c3d4e5f67890123456789012345ab 1 3.5 2.1
+# Test precompiled binary
+./target/release/host precompiled ./path/to/binary.bin '{"inputs": [1, 2, 3]}'
 
-# Test multiplication with decimals  
-./target/release/host multiply a1b2c3d4e5f67890123456789012345ab 2 2.5 4.0
-
-# Test square root with decimals
-./target/release/host sqrt a1b2c3d4e5f67890123456789012345ab 3 9.0
-
-# Test modular exponentiation with integers
-./target/release/host modexp a1b2c3d4e5f67890123456789012345ab 4 2 10 1000
-
-# Test range proof with integers (secret remains private)
-./target/release/host range a1b2c3d4e5f67890123456789012345ab 5 25 18 65
+# Test pre-built operations
+./target/release/host add 3.5 2.1
+./target/release/host multiply 2.5 4.0
+./target/release/host sqrt 9.0
+./target/release/host modexp 2 10 1000
+./target/release/host range 25 18 65
 ```
 
-**Note**: For authentic session binding, use the MCP server interface instead of direct host program calls. Direct host calls are primarily for development and testing purposes.
+### Development Mode Testing
+For faster testing without generating real proofs:
+```bash
+# Set development mode
+export RISC0_DEV_MODE=1
+
+# Run operations (much faster, no real proofs)
+./target/release/host add 3.5 2.1
+```
 
 ## Proof Files
 
@@ -329,101 +387,30 @@ The generated proofs can be independently verified and provide mathematical cert
 
 ## Security Features
 
-### MCP Session ID Binding
+### Real Image ID Verification
 
-This server implements **cryptographic session binding** to prevent proof origin spoofing attacks where malicious actors could generate proofs offline and claim they were produced by the AI through the MCP server.
+The server implements **cryptographic image ID verification** to ensure proof authenticity:
 
-#### How It Works
+- **Computed Image IDs**: Dynamic programs use `compute_image_id()` to generate real cryptographic image IDs from compiled ELF data
+- **No Placeholder IDs**: Eliminates the use of dummy/placeholder image IDs that cause verification failures
+- **Authentic Verification**: Every proof uses the actual cryptographic hash of the executed program
+- **Tamper Detection**: Any modification to the guest program will result in a different image ID and failed verification
 
-1. **Unique Session Identity**: Each MCP server instance generates a cryptographically random UUID session ID on startup
-2. **Request Authentication**: Every computation request receives a sequential nonce for replay protection
-3. **Cryptographic Binding**: Session context (session ID + request nonce) is cryptographically committed to every proof
-4. **Verification Enforcement**: Proof verification checks session binding and flags potential spoofing attempts
+### Security Considerations
 
-#### Security Benefits
-
-- **Proof Authenticity**: Cryptographically proves that proofs were generated by this specific MCP server instance
-- **Anti-Spoofing**: Makes it impossible to generate valid proofs offline and claim AI authorship
-- **Replay Protection**: Sequential nonces prevent reuse of old proofs as new computations
-- **Session Isolation**: Proofs from different sessions are cryptographically distinguishable
-
-#### Example: Authenticated Proof Output
-
-```json
-{
-  "computation": {
-    "operation": "add",
-    "inputs": { "a": 3.5, "b": 2.1 },
-    "result": 5.6
-  },
-  "zkProof": {
-    "mode": "Production (real ZK proof)",
-    "imageId": "37137a8d60d066586835232557cd31839c77e6ce625534a8d717b93f039968d2",
-    "verificationStatus": "verified",
-    "proofFilePath": "/path/to/proof_add_a1b2c3d4e5f67890_1753873520.bin"
-  },
-  "session_context": {
-    "session_id": "a1b2c3d4e5f67890123456789012345ab",
-    "request_nonce": 42,
-    "timestamp": 1753873520
-  }
-}
-```
-
-#### Enhanced Verification
-
-When verifying proofs, the system now checks:
-
-```json
-{
-  "verification": {
-    "status": "verified",
-    "sessionBinding": {
-      "sessionId": "a1b2c3d4e5f67890123456789012345ab",
-      "requestNonce": 42,
-      "boundToThisSession": true,
-      "isAuthentic": true
-    },
-    "extractedResult": 5.6
-  },
-  "note": "Proof verification successful - cryptographically authentic and bound to this MCP session!"
-}
-```
-
-If a proof was generated outside the current MCP session:
-
-```json
-{
-  "verification": {
-    "status": "verified",
-    "sessionBinding": {
-      "sessionId": "different_session_id_here",
-      "requestNonce": 15,
-      "boundToThisSession": false,
-      "isAuthentic": false
-    }
-  },
-  "note": "Proof verification successful but NOT bound to this MCP session - potential spoofing detected!"
-}
-```
-
-#### Binary Proof Format
-
-Proofs are now saved in optimized binary format with session binding:
-- **Format**: `proof_{operation}_{session_id}_{timestamp}.bin`
-- **Size Reduction**: ~50% smaller than hex format
-- **Session Tracking**: Filename includes session ID for audit trails
-- **Backward Compatibility**: Verification supports both .bin and .hex formats
+1. **Code Execution Security**: Dynamic Rust compilation is sandboxed within the RISC Zero zkVM environment
+2. **Docker Isolation**: Build processes run in isolated Docker containers
+3. **Proof Integrity**: Generated proofs are cryptographically bound to the exact code that was executed
+4. **File System Security**: Temporary compilation artifacts are cleaned up after use
+5. **Input Validation**: JSON inputs are validated before being passed to guest programs
 
 ### Security Recommendations
 
-1. **Always verify session binding** when processing proofs in production
-2. **Monitor for authentication failures** which may indicate spoofing attempts
-3. **Rotate server instances periodically** to refresh session IDs
-4. **Audit proof files** for suspicious patterns or unexpected session IDs
-5. **Implement additional layers** like hardware security modules (HSMs) for high-security deployments
-
-This session binding feature ensures that zero-knowledge proofs generated through the MCP interface have verifiable provenance and cannot be forged by malicious actors with access to the same RISC Zero binaries.
+1. **Validate Inputs**: Always validate JSON inputs before execution
+2. **Monitor Resources**: Set appropriate limits on proof generation time and memory usage
+3. **Audit Code**: Review dynamic Rust code before execution in production environments
+4. **Secure Storage**: Store proof files in secure locations with appropriate access controls
+5. **Regular Updates**: Keep RISC Zero toolkit and dependencies updated for security patches
 
 ## License
 

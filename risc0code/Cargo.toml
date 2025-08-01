@@ -1,6 +1,7 @@
 [workspace]
 resolver = "2"
 members = ["host", "methods", "verify", "methods/guest-multiply", "methods/guest-sqrt", "methods/guest-modexp", "methods/guest-range"]
+exclude = ["methods/guest-dynamic-*"]
 
 # Always optimize; building and running the guest takes much longer without optimization.
 [profile.dev]

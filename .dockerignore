@@ -1,0 +1,54 @@
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.npm
+.pnpm-debug.log*
+
+# Build outputs
+dist/
+coverage/
+
+# Rust build artifacts
+risc0code/target/
+**/*.rs.bk
+Cargo.lock
+.cargo/
+
+# Development files
+.git/
+.gitignore
+.env*
+.DS_Store
+*.log
+
+# Test files
+*.test.ts
+*.spec.ts
+
+# Documentation
+README.md
+docs/
+*.md
+paper.tex
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Temporary files
+*.tmp
+*.temp
+/tmp/
+
+# Proof files (can be large)
+*.bin
+*.hex
+proof_*

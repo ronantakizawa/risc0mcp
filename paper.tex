@@ -7,7 +7,8 @@
 \usepackage{listings}
 \usepackage{xcolor}
 \usepackage{geometry}
-\usepackage{cite}
+\usepackage{tikz}
+\usetikzlibrary{shapes,arrows,positioning,calc}
 
 \geometry{a4paper, margin=1in}
 
@@ -38,11 +39,11 @@ The integration of zero-knowledge proofs with AI-driven workflows presents signi
 
 \section{Introduction}
 
-The convergence of artificial intelligence and cryptographic systems has opened new frontiers in privacy-preserving computation and verifiable AI operations. As AI agents become increasingly autonomous and handle sensitive data, the need for cryptographic proof systems that can verify computational integrity without revealing private inputs has become paramount. Zero-knowledge proofs (ZKPs) offer a compelling solution by enabling the verification of computations while maintaining data privacy~\cite{goldwasser1985knowledge}.
+The convergence of artificial intelligence and cryptographic systems has opened new frontiers in privacy-preserving computation and verifiable AI operations. As AI agents become increasingly autonomous and handle sensitive data, the need for cryptographic proof systems that can verify computational integrity without revealing private inputs has become paramount. Zero-knowledge proofs (ZKPs) offer a compelling solution by enabling the verification of computations while maintaining data privacy.
 
-Recent developments in zero-knowledge virtual machines, particularly RISC Zero's zkVM~\cite{risc0whitepaper}, have made it practical to generate proofs for arbitrary computations. However, integrating these powerful cryptographic primitives with AI applications remains challenging due to the complexity of proof generation systems and the lack of standardized interfaces for AI-tool interaction.
+Recent developments in zero-knowledge virtual machines, particularly RISC Zero's zkVM, have made it practical to generate proofs for arbitrary computations. However, integrating these powerful cryptographic primitives with AI applications remains challenging due to the complexity of proof generation systems and the lack of standardized interfaces for AI-tool interaction.
 
-The introduction of the Model Context Protocol (MCP) by Anthropic~\cite{anthropic2024mcp} has provided a standardized framework for AI applications to interact with external tools and data sources. MCP enables seamless communication between AI models and external systems through a unified protocol, breaking down integration barriers and facilitating interoperability across diverse platforms.
+The introduction of the Model Context Protocol (MCP) by Anthropic has provided a standardized framework for AI applications to interact with external tools and data sources. MCP enables seamless communication between AI models and external systems through a unified protocol, breaking down integration barriers and facilitating interoperability across diverse platforms.
 
 This paper presents RISC Zero MCP, a comprehensive system that bridges zero-knowledge proof generation and AI tool integration through the Model Context Protocol. Our contributions are threefold:
 
@@ -61,43 +62,19 @@ The remainder of this paper is structured as follows: Section~\ref{sec:backgroun
 
 \subsection{Zero-Knowledge Proofs and RISC Zero}
 
-Zero-knowledge proofs allow one party (the prover) to prove to another party (the verifier) that a statement is true without revealing any information beyond the validity of the statement itself~\cite{goldwasser1985knowledge}. RISC Zero's zkVM implements a STARK-based proof system that can generate proofs for arbitrary RISC-V programs, making it particularly suitable for complex computational tasks.
+Zero-knowledge proofs allow one party (the prover) to prove to another party (the verifier) that a statement is true without revealing any information beyond the validity of the statement itself. RISC Zero's zkVM implements a STARK-based proof system that can generate proofs for arbitrary RISC-V programs, making it particularly suitable for complex computational tasks.
 
-The RISC Zero architecture consists of three main components:
-\begin{itemize}
-\item \textbf{Guest Programs}: RISC-V executables that perform the computation to be verified
-\item \textbf{Host Environment}: The execution environment that runs guest programs and generates proofs  
-\item \textbf{Verification System}: Components that validate the generated proofs
-\end{itemize}
+The RISC Zero architecture consists of three main components that work together to provide verifiable computation. Guest Programs are RISC-V executables that perform the computation to be verified, executing within a constrained environment that enables proof generation. The Host Environment provides the execution environment that runs guest programs and orchestrates the proof generation process, managing resources and coordinating between different system components. Finally, the Verification System encompasses all components responsible for validating the generated proofs, ensuring that computations were executed correctly without requiring re-execution.
 
 \subsection{Model Context Protocol}
 
-The Model Context Protocol (MCP) standardizes how AI applications interact with external tools and data sources. MCP follows a client-server architecture where:
-
-\begin{itemize}
-\item \textbf{MCP Clients}: AI applications that consume external capabilities
-\item \textbf{MCP Servers}: Services that expose tools, resources, and prompts to clients
-\item \textbf{Transport Layer}: Communication infrastructure enabling bidirectional data exchange
-\end{itemize}
-
-MCP servers provide three types of capabilities:
-\begin{enumerate}
-\item \textbf{Tools}: Enable external operations and API invocations
-\item \textbf{Resources}: Expose structured and unstructured data
-\item \textbf{Prompts}: Provide reusable templates for workflow optimization
-\end{enumerate}
+The Model Context Protocol (MCP) standardizes how AI applications interact with external tools and data sources through a client-server architecture that encompasses three key components working together to enable seamless integration. MCP Clients represent AI applications that consume external capabilities, serving as the consumer endpoints that request and utilize services from external systems, while MCP Servers act as services that expose tools, resources, and prompts to clients, functioning as the provider endpoints that implement and deliver specific capabilities. The Transport Layer provides the communication infrastructure enabling bidirectional data exchange between clients and servers, ensuring reliable and efficient message passing throughout the entire interaction lifecycle. MCP servers provide three distinct types of capabilities that address different aspects of AI-tool integration: Tools enable external operations and API invocations, allowing AI applications to perform actions and interact with external systems beyond their native capabilities; Resources expose both structured and unstructured data, providing AI applications with access to external information sources and datasets; and Prompts provide reusable templates for workflow optimization, enabling consistent and efficient interaction patterns across different use cases.
 
 \subsection{Motivation}
 
 The integration of zero-knowledge proofs with AI workflows addresses several critical challenges:
 
-\textbf{Privacy-Preserving Computation}: AI agents often process sensitive data that should not be exposed during computation verification. ZKPs enable verification of computational correctness while maintaining input privacy.
-
-\textbf{Trustless Verification}: In multi-agent systems or cross-organizational workflows, participants need to verify that computations were performed correctly without trusting the computing party.
-
-\textbf{Regulatory Compliance}: Industries with strict privacy requirements can benefit from verifiable computations that don't expose regulated data.
-
-\textbf{Computational Integrity}: AI agents making critical decisions can provide cryptographic proof that their computations were performed correctly.
+The integration of zero-knowledge proofs with AI workflows addresses several critical challenges that are becoming increasingly important in modern computational environments. Privacy-Preserving Computation becomes essential as AI agents often process sensitive data that should not be exposed during computation verification, with ZKPs enabling verification of computational correctness while maintaining input privacy and protecting sensitive information from unauthorized access. Trustless Verification addresses the needs of multi-agent systems or cross-organizational workflows, where participants need to verify that computations were performed correctly without trusting the computing party, enabling secure collaboration between untrusted entities. Regulatory Compliance benefits industries with strict privacy requirements, as verifiable computations can validate processing without exposing regulated data, helping organizations meet compliance requirements while maintaining operational efficiency. Finally, Computational Integrity enables AI agents making critical decisions to provide cryptographic proof that their computations were performed correctly, establishing accountability and trust in autonomous decision-making systems.
 
 However, existing solutions suffer from integration complexity, requiring deep expertise in both cryptographic systems and AI application development. Our RISC Zero MCP system addresses these challenges by providing a standardized, easy-to-use interface for AI applications to leverage zero-knowledge proofs.
 
@@ -106,19 +83,50 @@ However, existing solutions suffer from integration complexity, requiring deep e
 
 \subsection{Overview}
 
-Our RISC Zero MCP system architecture, illustrated in Figure~\ref{fig:architecture}, consists of four main layers:
-
-\begin{enumerate}
-\item \textbf{MCP Interface Layer}: Provides standardized tool interfaces for AI clients
-\item \textbf{Orchestration Layer}: Manages proof generation workflows and resource allocation  
-\item \textbf{RISC Zero Integration Layer}: Interfaces with the RISC Zero zkVM system
-\item \textbf{Storage Layer}: Manages proof artifacts and verification data
-\end{enumerate}
+Our RISC Zero MCP system architecture, illustrated in Figure~\ref{fig:architecture}, consists of four interconnected layers that work together to provide comprehensive zero-knowledge proof capabilities. The MCP Interface Layer provides standardized tool interfaces for AI clients, serving as the primary interaction point where AI applications can access zero-knowledge proof functionality through well-defined protocols, while the Orchestration Layer manages proof generation workflows and resource allocation, coordinating complex multi-step processes and ensuring efficient utilization of computational resources. The RISC Zero Integration Layer interfaces directly with the RISC Zero zkVM system, handling the low-level details of proof generation and verification while abstracting complexity from higher layers, and the Storage Layer manages proof artifacts and verification data, providing persistent storage capabilities with optimized formats and integrity guarantees.
 
 \begin{figure}[ht]
 \centering
-% Architecture diagram would be placed here
-\fbox{\parbox{0.8\textwidth}{\centering Architecture Diagram\\(Figure placeholder - diagram not available)}}
+\begin{tikzpicture}[node distance=1.5cm, auto]
+  % Define styles
+  \tikzstyle{layer} = [rectangle, draw, fill=blue!20, text width=3cm, text centered, rounded corners, minimum height=1cm]
+  \tikzstyle{component} = [rectangle, draw, fill=green!20, text width=2.5cm, text centered, rounded corners, minimum height=0.8cm]
+  \tikzstyle{arrow} = [thick,->,>=stealth]
+  
+  % Layers
+  \node [layer] (mcp) {MCP Interface Layer};
+  \node [layer, below of=mcp] (orchestration) {Orchestration Layer};
+  \node [layer, below of=orchestration] (risc0) {RISC Zero Integration Layer};
+  \node [layer, below of=risc0] (storage) {Storage Layer};
+  
+  % Components for MCP Interface Layer
+  \node [component, right of=mcp, xshift=2cm] (tools) {AI Tools\\Interface};
+  \node [component, below of=tools, yshift=0.5cm] (schema) {Schema\\Validation};
+  
+  % Components for Orchestration Layer
+  \node [component, right of=orchestration, xshift=2cm] (workflow) {Workflow\\Management};
+  \node [component, below of=workflow, yshift=0.5cm] (resource) {Resource\\Allocation};
+  
+  % Components for RISC Zero Layer
+  \node [component, right of=risc0, xshift=2cm] (zkvm) {zkVM\\Execution};
+  \node [component, below of=zkvm, yshift=0.5cm] (proof) {Proof\\Generation};
+  
+  % Components for Storage Layer
+  \node [component, right of=storage, xshift=2cm] (binary) {Binary\\Storage};
+  \node [component, below of=binary, yshift=0.5cm] (verify) {Verification\\Data};
+  
+  % Arrows between layers
+  \draw [arrow] (mcp) -- (orchestration);
+  \draw [arrow] (orchestration) -- (risc0);
+  \draw [arrow] (risc0) -- (storage);
+  
+  % Arrows to components
+  \draw [arrow] (mcp) -- (tools);
+  \draw [arrow] (orchestration) -- (workflow);
+  \draw [arrow] (risc0) -- (zkvm);
+  \draw [arrow] (storage) -- (binary);
+  
+\end{tikzpicture}
 \caption{RISC Zero MCP System Architecture}
 \label{fig:architecture}
 \end{figure}
@@ -127,55 +135,25 @@ Our RISC Zero MCP system architecture, illustrated in Figure~\ref{fig:architectu
 
 The MCP Interface Layer exposes five primary tools to AI clients:
 
-\textbf{zkvm\_add}: Performs addition of two decimal numbers with cryptographic proof generation. This tool demonstrates basic arithmetic operations within the zkVM environment.
-
-\textbf{zkvm\_multiply}: Executes multiplication operations with proof generation, showcasing more complex arithmetic computations.
-
-\textbf{zkvm\_sqrt}: Computes square roots using iterative algorithms within the zkVM, proving correct execution without revealing intermediate steps.
-
-\textbf{zkvm\_modexp}: Performs modular exponentiation, a fundamental operation in many cryptographic protocols, with zero-knowledge proof of correctness.
-
-\textbf{zkvm\_range}: Generates range proofs, enabling privacy-preserving verification that a secret value lies within specified bounds without revealing the actual value.
-
-\textbf{verify\_proof}: Validates previously generated proofs, enabling independent verification of computational integrity.
-
-Each tool follows the MCP specification, providing structured input schemas, comprehensive error handling, and standardized response formats.
+The MCP Interface Layer exposes six primary tools to AI clients, each designed to provide specific zero-knowledge proof capabilities while maintaining standardized interfaces. The \textbf{zkvm\_add} tool performs addition of two decimal numbers with cryptographic proof generation, demonstrating basic arithmetic operations within the zkVM environment, while \textbf{zkvm\_multiply} executes multiplication operations with proof generation, showcasing more complex arithmetic computations. The \textbf{zkvm\_sqrt} tool computes square roots using iterative algorithms within the zkVM, proving correct execution without revealing intermediate steps, and \textbf{zkvm\_modexp} performs modular exponentiation, a fundamental operation in many cryptographic protocols, with zero-knowledge proof of correctness. Additionally, \textbf{zkvm\_range} generates range proofs, enabling privacy-preserving verification that a secret value lies within specified bounds without revealing the actual value, while \textbf{verify\_proof} validates previously generated proofs, enabling independent verification of computational integrity. Each tool follows the MCP specification, providing structured input schemas, comprehensive error handling, and standardized response formats that ensure consistent interaction patterns across all supported operations.
 
 \subsection{Orchestration Layer}
 
 The Orchestration Layer manages the complex workflow of proof generation, including:
 
-\textbf{Resource Management}: Ensures adequate system resources for proof generation, which can be computationally intensive.
-
-\textbf{Process Isolation}: Maintains security boundaries between different proof generation sessions.
-
-\textbf{State Management}: Tracks proof generation progress and manages intermediate artifacts.
-
-\textbf{Error Recovery}: Provides robust error handling and recovery mechanisms for failed proof generations.
+The Orchestration Layer manages the complex workflow of proof generation through four key capabilities that ensure reliable and efficient operation. Resource Management ensures adequate system resources for proof generation, which can be computationally intensive, while Process Isolation maintains security boundaries between different proof generation sessions to prevent cross-contamination and ensure system stability. State Management tracks proof generation progress and manages intermediate artifacts throughout the entire lifecycle, and Error Recovery provides robust error handling and recovery mechanisms for failed proof generations, ensuring system resilience and reliability.
 
 \subsection{RISC Zero Integration Layer}
 
 This layer provides the core integration with RISC Zero's zkVM system:
 
-\textbf{Guest Program Management}: Maintains and executes specialized RISC-V programs for each supported operation.
-
-\textbf{Proof Generation}: Orchestrates the zkVM execution and STARK proof generation process.
-
-\textbf{Verification Interface}: Provides standardized interfaces for proof verification.
-
-\textbf{Performance Optimization}: Implements caching and optimization strategies to improve proof generation performance.
+The RISC Zero Integration Layer provides the core integration with RISC Zero's zkVM system through four essential components that handle all low-level cryptographic operations. Guest Program Management maintains and executes specialized RISC-V programs for each supported operation, ensuring that computational logic is properly isolated and executed within the zkVM environment, while Proof Generation orchestrates the zkVM execution and STARK proof generation process, coordinating the complex sequence of operations required to produce cryptographic proofs. The Verification Interface provides standardized interfaces for proof verification, abstracting the complexity of cryptographic validation from higher-level components, and Performance Optimization implements caching and optimization strategies to improve proof generation performance, reducing computational overhead and improving system responsiveness.
 
 \subsection{Storage Layer}
 
 The Storage Layer manages proof artifacts with several key innovations:
 
-\textbf{Binary Proof Format}: Implements an optimized binary storage format that reduces file sizes by approximately 50% compared to hexadecimal encoding.
-
-\textbf{Integrity Verification}: Ensures stored proofs maintain cryptographic integrity through checksums and digital signatures.
-
-\textbf{Metadata Management}: Maintains comprehensive metadata about generated proofs for efficient retrieval and verification.
-
-\textbf{Garbage Collection}: Implements automated cleanup of expired or unnecessary proof artifacts.
+The Storage Layer manages proof artifacts with several key innovations that optimize both performance and reliability. The Binary Proof Format implements an optimized binary storage format that reduces file sizes by approximately 50% compared to hexadecimal encoding, significantly improving storage efficiency and reducing network transmission costs, while Integrity Verification ensures stored proofs maintain cryptographic integrity through checksums and digital signatures, providing robust protection against data corruption and tampering. Metadata Management maintains comprehensive metadata about generated proofs for efficient retrieval and verification, enabling rapid lookup and validation of stored artifacts, and Garbage Collection implements automated cleanup of expired or unnecessary proof artifacts, preventing storage bloat and maintaining optimal system performance over time.
 
 \section{Implementation}
 \label{sec:implementation}
@@ -184,65 +162,25 @@ The Storage Layer manages proof artifacts with several key innovations:
 
 We developed specialized guest programs for each supported operation using Rust and the RISC Zero guest SDK. Key implementation details include:
 
-\textbf{Fixed-Point Arithmetic}: To handle decimal operations in the integer-based zkVM environment, we implemented a fixed-point arithmetic system with a scale factor of 10,000, providing four decimal places of precision.
-
-\textbf{Input Validation}: Each guest program implements comprehensive input validation to prevent edge cases and ensure mathematical correctness.
-
-\textbf{Journal Output}: Structured output formatting ensures consistent data extraction from proof receipts.
-
-\begin{lstlisting}[caption=Example Guest Program for Addition,label=lst:guest]
-use risc0_zkvm::guest::env;
-
-fn main() {
-    let a: i64 = env::read();
-    let b: i64 = env::read();
-    
-    // Perform addition with overflow checking
-    let result = a.checked_add(b)
-        .expect("Addition overflow");
-    
-    // Commit results to journal
-    env::commit(&a);
-    env::commit(&b); 
-    env::commit(&result);
-}
-\end{lstlisting}
+We developed specialized guest programs for each supported operation using Rust and the RISC Zero guest SDK, incorporating several key implementation strategies to ensure robust and reliable operation. To handle decimal operations in the integer-based zkVM environment, we implemented a fixed-point arithmetic system with a scale factor of 10,000, providing four decimal places of precision while maintaining computational efficiency within the constrained zkVM environment. Each guest program implements comprehensive input validation to prevent edge cases and ensure mathematical correctness, incorporating boundary checks and error handling to maintain system stability, while structured output formatting ensures consistent data extraction from proof receipts through standardized journal output mechanisms.
 
 \subsection{Host Implementation}
 
 The host implementation, written in Rust, manages the complete proof generation workflow:
 
-\textbf{Environment Setup}: Configures the executor environment with appropriate inputs for each operation.
-
-\textbf{Proof Generation}: Orchestrates zkVM execution and STARK proof generation with comprehensive error handling.
-
-\textbf{Result Extraction}: Parses proof receipts and extracts computational results using structured byte decoding.
-
-\textbf{Verification}: Validates generated proofs against expected image identifiers to ensure correctness.
+The host implementation, written in Rust, manages the complete proof generation workflow through a comprehensive set of capabilities that ensure reliable and efficient operation. Environment Setup configures the executor environment with appropriate inputs for each operation, preparing the zkVM context with all necessary parameters and data structures, while Proof Generation orchestrates zkVM execution and STARK proof generation with comprehensive error handling, managing the complex sequence of cryptographic operations required to produce valid proofs. Result Extraction parses proof receipts and extracts computational results using structured byte decoding, ensuring accurate data recovery from the cryptographic artifacts, and Verification validates generated proofs against expected image identifiers to ensure correctness, providing an additional layer of validation before returning results to clients.
 
 \subsection{MCP Server Implementation}
 
 The MCP server, implemented in TypeScript using the official MCP SDK, provides:
 
-\textbf{Tool Registration}: Dynamic registration of available zkVM operations as MCP tools.
-
-\textbf{Request Handling}: Asynchronous processing of proof generation requests with appropriate timeout management.
-
-\textbf{Response Formatting}: Structured JSON responses containing computational results, proof metadata, and verification status.
-
-\textbf{Error Management}: Comprehensive error handling with meaningful error messages for debugging and user feedback.
+The MCP server, implemented in TypeScript using the official MCP SDK, provides a comprehensive interface layer that bridges AI applications with the underlying zkVM capabilities. Tool Registration enables dynamic registration of available zkVM operations as MCP tools, automatically exposing new capabilities as they become available in the system, while Request Handling provides asynchronous processing of proof generation requests with appropriate timeout management, ensuring system responsiveness and preventing resource exhaustion. Response Formatting delivers structured JSON responses containing computational results, proof metadata, and verification status, providing clients with all necessary information for downstream processing, and Error Management implements comprehensive error handling with meaningful error messages for debugging and user feedback, facilitating rapid problem diagnosis and resolution.
 
 \subsection{Binary Proof Storage}
 
 Our binary proof storage system implements several optimizations:
 
-\textbf{Serialization}: Uses bincode for efficient binary serialization of proof receipts, reducing storage overhead.
-
-\textbf{File Management}: Implements timestamped file naming with automatic cleanup policies.
-
-\textbf{Verification Support}: Maintains compatibility with both binary and legacy hexadecimal proof formats.
-
-\textbf{Integrity Checks}: Implements checksum validation to detect corruption in stored proof files.
+Our binary proof storage system implements several optimizations that significantly improve performance and reliability while maintaining full compatibility with existing systems. Serialization uses bincode for efficient binary serialization of proof receipts, reducing storage overhead and improving read/write performance compared to text-based formats, while File Management implements timestamped file naming with automatic cleanup policies, ensuring organized storage and preventing accumulation of obsolete artifacts. Verification Support maintains compatibility with both binary and legacy hexadecimal proof formats, enabling seamless migration and interoperability with existing systems, and Integrity Checks implement checksum validation to detect corruption in stored proof files, providing robust protection against data degradation and ensuring long-term reliability.
 
 \section{Evaluation}
 \label{sec:evaluation}
@@ -251,7 +189,7 @@ Our binary proof storage system implements several optimizations:
 
 We conducted comprehensive performance evaluation across multiple dimensions:
 
-\textbf{Proof Generation Time}: Table~\ref{tab:performance} shows proof generation times for different operations. Complex operations like modular exponentiation require more time due to increased computational complexity.
+\textbf{Proof Generation Time}: We conducted comprehensive performance evaluation across multiple dimensions, with Table~\ref{tab:performance} showing proof generation times for different operations where complex operations like modular exponentiation require more time due to increased computational complexity.
 
 \begin{table}[ht]
 \centering
@@ -270,34 +208,21 @@ Range Proof & 3,876 & 198 \\
 \end{tabular}
 \end{table}
 
-\textbf{Storage Efficiency}: Our binary proof format achieves significant storage savings:
-\begin{itemize}
-\item Binary format: ~210KB per proof
-\item Hexadecimal format: ~420KB per proof  
-\item Storage reduction: ~50\%
-\end{itemize}
+\textbf{Storage Efficiency}: Our binary proof format achieves significant storage savings compared to traditional approaches, with the binary format requiring approximately 210KB per proof while the hexadecimal format requires approximately 420KB per proof, resulting in a storage reduction of approximately 50% that directly translates to reduced storage costs and faster proof transmission over networks.
 
-\textbf{Verification Performance}: Proof verification is consistently fast across all operation types, typically completing in 15-25ms regardless of the original computation complexity.
+\textbf{Verification Performance}: Proof verification demonstrates consistently fast performance across all operation types, typically completing in 15-25ms regardless of the original computation complexity, indicating that verification overhead remains minimal even for complex cryptographic operations.
 
 \subsection{Scalability Assessment}
 
 We evaluated system scalability through concurrent proof generation testing:
 
-\textbf{Concurrent Operations}: The system successfully handles multiple concurrent proof generation requests with linear resource scaling.
-
-\textbf{Memory Usage}: Peak memory usage scales predictably with the number of concurrent operations, with each proof generation requiring approximately 150MB of working memory.
-
-\textbf{CPU Utilization}: Proof generation is CPU-intensive but benefits from multi-core architectures through parallel execution.
+We evaluated system scalability through concurrent proof generation testing, demonstrating robust performance characteristics under load. The system successfully handles multiple concurrent proof generation requests with linear resource scaling, maintaining consistent performance as workload increases, while peak memory usage scales predictably with the number of concurrent operations, with each proof generation requiring approximately 150MB of working memory. Proof generation is CPU-intensive but benefits from multi-core architectures through parallel execution, enabling efficient utilization of available computational resources and maintaining throughput under concurrent load.
 
 \subsection{Integration Testing}
 
 We validated MCP integration through comprehensive testing:
 
-\textbf{Client Compatibility}: Successfully tested with multiple MCP clients including Claude Desktop and custom implementations.
-
-\textbf{Tool Discovery}: Verified automatic tool discovery and schema validation across different client implementations.
-
-\textbf{Error Handling}: Confirmed robust error propagation and handling across the MCP interface.
+We validated MCP integration through comprehensive testing across multiple dimensions to ensure broad compatibility and reliable operation. Client Compatibility testing successfully validated operation with multiple MCP clients including Claude Desktop and custom implementations, demonstrating the system's adherence to MCP specifications and broad interoperability, while Tool Discovery verification confirmed automatic tool discovery and schema validation across different client implementations, ensuring seamless integration regardless of client-specific variations. Error Handling testing confirmed robust error propagation and handling across the MCP interface, validating that error conditions are properly communicated and handled throughout the entire system stack.
 
 \section{Security Analysis}
 \label{sec:security}
@@ -306,84 +231,35 @@ We validated MCP integration through comprehensive testing:
 
 Our threat model considers several attack vectors relevant to ZKP-enabled AI systems:
 
-\textbf{Proof Forgery}: Attempts to generate false proofs that appear valid but represent incorrect computations.
-
-\textbf{Input Manipulation}: Malicious modification of inputs to cause unexpected behavior or information disclosure.
-
-\textbf{Side-Channel Attacks}: Attempts to extract sensitive information through timing analysis or resource usage patterns.
-
-\textbf{Verification Bypass}: Attempts to circumvent proof verification mechanisms.
+Our threat model considers several attack vectors relevant to ZKP-enabled AI systems that could potentially compromise system security or data privacy. Proof Forgery represents attempts to generate false proofs that appear valid but represent incorrect computations, potentially undermining the fundamental trust assumptions of the system, while Input Manipulation involves malicious modification of inputs to cause unexpected behavior or information disclosure, threatening both system integrity and data confidentiality. Side-Channel Attacks attempt to extract sensitive information through timing analysis or resource usage patterns, exploiting implementation details rather than cryptographic weaknesses, and Verification Bypass attacks attempt to circumvent proof verification mechanisms, potentially allowing invalid computations to be accepted as legitimate.
 
 \subsection{Security Measures}
 
 Our implementation incorporates several security measures:
 
-\textbf{Cryptographic Integrity}: All proofs use RISC Zero's STARK-based system, providing computational soundness with overwhelming probability.
-
-\textbf{Input Validation}: Comprehensive input sanitization prevents edge cases and potential exploits.
-
-\textbf{Process Isolation}: Each proof generation runs in an isolated environment, preventing cross-contamination.
-
-\textbf{Proof Verification}: All generated proofs undergo automatic verification before being returned to clients.
+Our implementation incorporates several security measures designed to address the identified threat vectors and ensure robust protection against potential attacks. Cryptographic Integrity ensures that all proofs use RISC Zero's STARK-based system, providing computational soundness with overwhelming probability and establishing strong mathematical foundations for trust, while comprehensive Input Validation prevents edge cases and potential exploits through thorough sanitization and boundary checking of all user-provided data. Process Isolation ensures that each proof generation runs in an isolated environment, preventing cross-contamination between different operations and maintaining system stability, and automatic Proof Verification ensures that all generated proofs undergo verification before being returned to clients, providing an additional layer of protection against potential implementation errors or attacks.
 
 \subsection{Privacy Considerations}
 
 The system addresses several privacy concerns:
 
-\textbf{Input Privacy}: The range proof functionality specifically demonstrates how sensitive inputs can remain private while still enabling verification.
-
-\textbf{Computation Privacy}: Intermediate computation steps are not exposed in proof artifacts.
-
-\textbf{Result Privacy}: While computation results are typically public, the proof generation process doesn't expose unnecessary intermediate values.
+The system addresses several privacy concerns that are critical for deployment in sensitive environments where data protection is paramount. Input Privacy is demonstrated through the range proof functionality, which specifically shows how sensitive inputs can remain private while still enabling verification, allowing organizations to validate computations without exposing confidential data. Computation Privacy ensures that intermediate computation steps are not exposed in proof artifacts, protecting proprietary algorithms and sensitive processing logic from disclosure, while Result Privacy maintains that although computation results are typically public, the proof generation process doesn't expose unnecessary intermediate values that could reveal additional information about the underlying computation or inputs.
 
 \section{Related Work}
 \label{sec:related}
 
 \subsection{Zero-Knowledge Proof Systems}
 
-Several ZKP systems have been developed for different use cases. Zcash~\cite{zcash} pioneered practical applications of zero-knowledge proofs in cryptocurrency. More recent systems like Circom~\cite{circom} and Cairo~\cite{cairo} provide domain-specific languages for ZKP development. RISC Zero distinguishes itself by supporting arbitrary RISC-V programs, providing greater flexibility than constraint-based systems.
+Several ZKP systems have been developed for different use cases. Zcash pioneered practical applications of zero-knowledge proofs in cryptocurrency. More recent systems like Circom and Cairo provide domain-specific languages for ZKP development. RISC Zero distinguishes itself by supporting arbitrary RISC-V programs, providing greater flexibility than constraint-based systems.
 
 \subsection{AI Tool Integration}
 
-The landscape of AI tool integration has evolved rapidly. LangChain~\cite{langchain} and LlamaIndex~\cite{llamaindex} provide frameworks for connecting AI models with external tools, but lack standardized protocols. OpenAI's function calling~\cite{openai_functions} introduced structured tool invocation, but remained platform-specific. MCP addresses these limitations by providing a universal protocol for AI-tool integration.
+The landscape of AI tool integration has evolved rapidly. LangChain and LlamaIndex provide frameworks for connecting AI models with external tools, but lack standardized protocols. OpenAI's function calling introduced structured tool invocation, but remained platform-specific. MCP addresses these limitations by providing a universal protocol for AI-tool integration.
 
 \subsection{Verifiable Computation}
 
-Verifiable computation has been explored in various contexts. Pinocchio~\cite{pinocchio} provided early practical implementations, while more recent work like Bulletproofs~\cite{bulletproofs} has focused on specific applications like range proofs. Our work contributes by making verifiable computation accessible to AI applications through standardized interfaces.
+Verifiable computation has been explored in various contexts. Pinocchio provided early practical implementations, while more recent work like Bulletproofs has focused on specific applications like range proofs. Our work contributes by making verifiable computation accessible to AI applications through standardized interfaces.
 
-\section{Discussion and Future Work}
-
-\subsection{Implications for AI Systems}
-
-Our RISC Zero MCP system demonstrates the potential for integrating cryptographic proof systems with AI workflows. This integration enables new applications in:
-
-\textbf{Privacy-Preserving AI}: AI agents can perform computations on sensitive data while providing cryptographic proof of correctness without revealing the data itself.
-
-\textbf{Multi-Party Computation}: Different parties can verify AI computations without trusting the computing entity.
-
-\textbf{Regulatory Compliance}: Organizations can demonstrate compliance with computational requirements without exposing proprietary algorithms or data.
-
-\subsection{Limitations and Challenges}
-
-Several limitations warrant discussion:
-
-\textbf{Computational Overhead}: ZKP generation is computationally expensive, potentially limiting real-time applications.
-
-\textbf{Complexity}: Despite our simplified interface, understanding ZKP concepts remains challenging for many developers.
-
-\textbf{Scalability}: Current implementation focuses on single-node deployment; distributed proof generation remains future work.
-
-\subsection{Future Directions}
-
-Several directions for future development emerge:
-
-\textbf{Advanced Cryptographic Protocols}: Integration with additional ZKP systems and cryptographic primitives.
-
-\textbf{Performance Optimization}: Investigation of proof aggregation and batch processing techniques.
-
-\textbf{Enhanced Privacy}: Development of more sophisticated privacy-preserving computation patterns.
-
-\textbf{Distributed Architecture}: Design of distributed proof generation systems for improved scalability.
 
 \section{Conclusion}
 \label{sec:conclusion}
