@@ -5,8 +5,8 @@ use risc0_zkvm::guest::env;
 
 risc0_zkvm::guest::entry!(main);
 
-// Fixed-point arithmetic scale factor (4 decimal places)
-const SCALE: i64 = 10000;
+// Fixed-point arithmetic scale factor (5 decimal places for better precision)
+const SCALE: i64 = 100000;
 
 fn main() {
     // Read two fixed-point numbers (scaled integers) from the host

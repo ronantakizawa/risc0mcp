@@ -4,23 +4,34 @@ fn main() {
     // Read input JSON from the host
     let inputs_json: String = env::read();
     
-    // Parse the inputs - expecting a JSON array with a single number
-    let result = if let Ok(input_str) = serde_json::from_str::<String>(&inputs_json) {
-        // If it's a string containing a number, parse it
-        if let Ok(num) = input_str.parse::<i64>() {
+    // Parse the inputs - try different JSON formats
+    let result = if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&inputs_json) {
+        if let Some(n) = parsed.get("n") {
+            // Handle {"n": 10} format
+            if let Some(num) = n.as_i64() {
+                fibonacci(num)
+            } else {
+                -2 // n field not a number
+            }
+        } else if let Some(arr) = parsed.as_array() {
+            // Handle [10] format
+            if let Some(first) = arr.first() {
+                if let Some(num) = first.as_i64() {
+                    fibonacci(num)
+                } else {
+                    -3 // array element not a number
+                }
+            } else {
+                -4 // empty array
+            }
+        } else if let Some(num) = parsed.as_i64() {
+            // Handle direct number 10
             fibonacci(num)
         } else {
-            -1 // Error case
-        }
-    } else if let Ok(inputs) = serde_json::from_str::<Vec<i64>>(&inputs_json) {
-        // If it's an array of numbers, use the first one
-        if let Some(&first) = inputs.first() {
-            fibonacci(first)
-        } else {
-            -1 // Error case
+            -5 // unknown format
         }
     } else {
-        -1 // Error case
+        -6 // JSON parse error
     };
     
     // Commit the computed result

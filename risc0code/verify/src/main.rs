@@ -100,31 +100,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("📋 Receipt journal length: {} bytes", receipt.journal.bytes.len());
     }
     
-    // Extract session context from the journal (first 24 bytes)
-    println!("🔐 Extracting session context...");
-    let bytes = &receipt.journal.bytes;
-    if bytes.len() < 24 {
-        return Err("Journal too short - missing session context".into());
-    }
-    
-    // First 16 bytes: session_id
-    let session_id_bytes: [u8; 16] = [
-        bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5], bytes[6], bytes[7],
-        bytes[8], bytes[9], bytes[10], bytes[11], bytes[12], bytes[13], bytes[14], bytes[15]
-    ];
-    let session_id_hex = hex::encode(session_id_bytes);
-    
-    // Next 8 bytes: request_nonce
-    let request_nonce = u64::from_le_bytes([
-        bytes[16], bytes[17], bytes[18], bytes[19], bytes[20], bytes[21], bytes[22], bytes[23]
-    ]);
-    
-    println!("Session ID: {}", session_id_hex);
-    println!("Request nonce: {}", request_nonce);
-    
-    // Extract the result from the journal (starting after session context)
+    // Extract the result from the journal (no session context)
     println!("🔢 Extracting computation result...");
-    let computation_bytes = &bytes[24..]; // Skip first 24 bytes (session context)
+    let bytes = &receipt.journal.bytes;
+    let computation_bytes = bytes; // No session context to skip
     let result: i32 = match operation.as_str() {
         "sqrt" => {
             // For sqrt, manually decode the bytes for fixed-point values (i64)

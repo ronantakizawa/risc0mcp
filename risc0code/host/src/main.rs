@@ -5,8 +5,8 @@ use std::time::{Instant, SystemTime, UNIX_EPOCH};
 use std::fs;
 use std::process::Command;
 
-// Fixed-point arithmetic scale factor (4 decimal places)
-const SCALE: i64 = 10000;
+// Fixed-point arithmetic scale factor (5 decimal places for better precision)
+const SCALE: i64 = 100000;
 
 // Convert decimal number to fixed-point representation
 fn decimal_to_fixed_point(decimal: f64) -> i64 {
@@ -177,6 +177,8 @@ edition = "2021"
 
 [dependencies]
 risc0-zkvm = { version = "^2.3.1", default-features = false, features = ["std"] }
+serde = { version = "1.0", default-features = false, features = ["derive", "alloc"] }
+serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
 
 [[bin]]
 name = "guest-dynamic"
@@ -301,13 +303,9 @@ path = "src/main.rs"
     };
     eprintln!("🚀 Starting RISC Zero zkVM computation: {}", inputs_desc);
     
-    let dev_mode = std::env::var("RISC0_DEV_MODE").unwrap_or("0".to_string()) == "1";
-    if dev_mode {
-        eprintln!("⚠️  Running in DEVELOPMENT mode - no real proofs generated");
-    } else {
-        eprintln!("🔐 Running in PRODUCTION mode - generating real ZK-STARK proof");
-        eprintln!("💡 This may take several minutes and use significant CPU/memory");
-    }
+    let dev_mode = false;
+    eprintln!("🔐 Running in PRODUCTION mode - generating real ZK-STARK proof");
+    eprintln!("💡 This may take several minutes and use significant CPU/memory");
     
     // Initialize the executor environment
     eprintln!("📝 Setting up executor environment...");
@@ -373,21 +371,15 @@ path = "src/main.rs"
     let prove_start = Instant::now();
     let prover = default_prover();
     
-    if !dev_mode {
-        eprintln!("🔄 Executing guest program in zkVM...");
-    }
+    eprintln!("🔄 Executing guest program in zkVM...");
     
     let prove_info = prover.prove(env, elf_data)?;
     let receipt = prove_info.receipt;
     let prove_duration = prove_start.elapsed();
     
-    if dev_mode {
-        eprintln!("✅ Development execution completed ({:.2?})", prove_duration);
-    } else {
-        eprintln!("🎉 ZK-STARK proof generation completed! ({:.2?})", prove_duration);
-        if let Ok(succinct) = receipt.inner.succinct() {
-            eprintln!("📊 Proof size: {} bytes", succinct.seal.len());
-        }
+    eprintln!("🎉 ZK-STARK proof generation completed! ({:.2?})", prove_duration);
+    if let Ok(succinct) = receipt.inner.succinct() {
+        eprintln!("📊 Proof size: {} bytes", succinct.seal.len());
     }
     
     // Extract the result from the receipt's journal
@@ -578,13 +570,11 @@ path = "src/main.rs"
     let total_duration = total_start.elapsed();
     eprintln!("⏱️  Total execution time: {:.2?}", total_duration);
     
-    if !dev_mode {
-        eprintln!("🏆 Real zero-knowledge proof successfully generated and verified!");
-        eprintln!("📈 Performance stats:");
-        eprintln!("   • Proof generation: {:.2?}", prove_duration);
-        eprintln!("   • Verification: {:.2?}", verify_duration);
-        eprintln!("   • Total time: {:.2?}", total_duration);
-    }
+    eprintln!("🏆 Real zero-knowledge proof successfully generated and verified!");
+    eprintln!("📈 Performance stats:");
+    eprintln!("   • Proof generation: {:.2?}", prove_duration);
+    eprintln!("   • Verification: {:.2?}", verify_duration);
+    eprintln!("   • Total time: {:.2?}", total_duration);
     
     eprintln!("🔄 Outputting JSON result...");
     
@@ -600,23 +590,19 @@ path = "src/main.rs"
     };
     
     // Get proof/seal data
-    let (proof_hex, proof_size, proof_file_path) = if !dev_mode {
-        // Try to get the full receipt bytes for the proof
-        let receipt_bytes = bincode::serialize(&receipt)?;
-        let receipt_hex = hex::encode(&receipt_bytes);
-        let size = receipt_bytes.len();
-        
-        // Save proof to binary file
-        let proof_filename = format!("proof_{}_{}.bin", operation, timestamp);
-        match std::fs::write(&proof_filename, &receipt_bytes) {
-            Ok(_) => eprintln!("📁 Full receipt proof saved to: {}", proof_filename),
-            Err(e) => eprintln!("⚠️  Failed to save proof file: {}", e),
-        }
-        
-        (Some(receipt_hex), Some(size), Some(proof_filename))
-    } else {
-        (None, None, None)
-    };
+    // Try to get the full receipt bytes for the proof
+    let receipt_bytes = bincode::serialize(&receipt)?;
+    let receipt_hex = hex::encode(&receipt_bytes);
+    let size = receipt_bytes.len();
+    
+    // Save proof to binary file
+    let proof_filename = format!("proof_{}_{}.bin", operation, timestamp);
+    match std::fs::write(&proof_filename, &receipt_bytes) {
+        Ok(_) => eprintln!("📁 Full receipt proof saved to: {}", proof_filename),
+        Err(e) => eprintln!("⚠️  Failed to save proof file: {}", e),
+    }
+    
+    let (proof_hex, proof_size, proof_file_path) = (Some(receipt_hex), Some(size), Some(proof_filename));
     
     println!("{{");
     println!("  \"timestamp\": {},", timestamp);
@@ -661,19 +647,10 @@ path = "src/main.rs"
     println!("  \"total_time_ms\": {},", total_duration.as_millis());
     
     // Include proof data
-    if let Some(proof) = &proof_hex {
-        println!("  \"proof_seal_hex\": \"{}\",", proof);
-        println!("  \"proof_size_bytes\": {},", proof_size.unwrap_or(0));
-        if let Some(file_path) = &proof_file_path {
-            println!("  \"proof_file_path\": \"{}\",", file_path);
-        }
-    } else {
-        println!("  \"proof_seal_hex\": null,");
-        println!("  \"proof_size_bytes\": null,");
-        println!("  \"proof_file_path\": null,");
-    }
-    
-    println!("  \"dev_mode\": {}", dev_mode);
+    println!("  \"proof_seal_hex\": \"{}\",", proof_hex.unwrap_or_default());
+    println!("  \"proof_size_bytes\": {},", proof_size.unwrap_or(0));
+    println!("  \"proof_file_path\": \"{}\",", proof_file_path.unwrap_or_default());
+    println!("  \"dev_mode\": false");
     println!("}}");
     
     Ok(())

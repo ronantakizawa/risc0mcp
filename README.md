@@ -115,9 +115,12 @@ Add the following configuration to your `claude_desktop_config.json`:
   "mcpServers": {
     "risc0-zkvm": {
       "command": "node",
-      "args": ["/absolute/path/to/risc0mcp/dist/index.js"],
+      "args": ["/Users/ronantakizawa/Documents/projects/risc0mcp/dist/index.js"],
       "env": {
-        "RISC0_DEV_MODE": "0"
+        "RISC0_DEV_MODE": "0",
+        "PATH": "/Users/ronantakizawa/.cargo/bin:/Users/ronantakizawa/.risc0/bin:/usr/local/bin:/usr/bin:/bin",
+        "CARGO_HOME": "/Users/ronantakizawa/.cargo",
+        "RUSTUP_HOME": "/Users/ronantakizawa/.rustup"
       }
     }
   }
@@ -131,45 +134,13 @@ Add the following configuration to your `claude_desktop_config.json`:
 - Windows: `C:\\Users\\yourname\\risc0mcp\\dist\\index.js`
 - Linux: `/home/yourname/risc0mcp/dist/index.js`
 
-### Step 3: Environment Configuration
-
-**For Development Mode (Faster, No Real Proofs):**
-```json
-{
-  "mcpServers": {
-    "risc0-zkvm": {
-      "command": "node",
-      "args": ["/absolute/path/to/risc0mcp/dist/index.js"],
-      "env": {
-        "RISC0_DEV_MODE": "1"
-      }
-    }
-  }
-}
-```
-
-**For Production Mode (Real ZK-STARK Proofs):**
-```json
-{
-  "mcpServers": {
-    "risc0-zkvm": {
-      "command": "node",
-      "args": ["/absolute/path/to/risc0mcp/dist/index.js"],
-      "env": {
-        "RISC0_DEV_MODE": "0"
-      }
-    }
-  }
-}
-```
-
-### Step 4: Restart Claude Desktop
+### Step 3: Restart Claude Desktop
 After updating the configuration:
 1. **Quit Claude Desktop completely**
 2. **Restart Claude Desktop**
 3. **Wait for initialization** (may take 10-15 seconds)
 
-### Step 5: Verify Installation
+### Step 4: Verify Installation
 In Claude Desktop, try asking:
 > "Can you add 3.5 and 2.1 using the RISC Zero zkVM?"
 
@@ -206,74 +177,6 @@ The MCP server runs automatically when Claude Desktop starts. You can interact w
 - ✅ Real ZK-STARK proofs
 - 🔐 Cryptographically verifiable results
 
-## Troubleshooting
-
-### Common Issues
-
-**"MCP server failed to start"**
-```bash
-# Check if Node.js can find the script
-node /absolute/path/to/risc0mcp/dist/index.js
-
-# Verify the path exists
-ls -la /absolute/path/to/risc0mcp/dist/index.js
-```
-
-**"RISC Zero binary not found"**
-```bash
-# Rebuild the RISC Zero binaries
-cd risc0code
-cargo build --release
-
-# Verify binaries exist
-ls -la target/release/host
-ls -la target/release/verify
-```
-
-**"Docker connection failed"**
-```bash
-# Check Docker is running
-docker ps
-
-# Test Docker access
-docker run hello-world
-```
-
-**"Rust/Cargo not found"**
-```bash
-# Ensure Rust is in your PATH
-which cargo
-source $HOME/.cargo/env
-
-# Verify RISC Zero installation
-cargo risczero --version
-```
-
-**"TypeScript build errors"**
-```bash
-# Clean and rebuild
-rm -rf dist node_modules
-npm install
-npm run build
-```
-
-### Getting Help
-
-1. **Check the Claude Desktop logs** for detailed error messages
-2. **Run the MCP server directly** to see console output:
-   ```bash
-   cd risc0mcp
-   RISC0_DEV_MODE=1 node dist/index.js
-   ```
-3. **Verify all prerequisites** are installed and working
-4. **Check file permissions** on the dist/index.js file
-
-### Performance Tips
-
-- Use **Development Mode** for testing and experimentation
-- Use **Production Mode** only when you need verifiable proofs
-- **Docker startup** can take 30-60 seconds for the first dynamic compilation
-- **Proof files** are saved in the project directory for verification
 
 ### Available Tools
 
@@ -457,37 +360,6 @@ Verifies a RISC Zero proof from a .bin or .hex file and extracts the computation
 }
 ```
 
-## Testing
-
-### Manual Testing
-Test individual operations directly using the host program:
-```bash
-cd risc0code
-
-# Test dynamic Rust execution
-./target/release/host dynamic ./test_dynamic_rust.rs '{"n": 10}'
-
-# Test precompiled binary
-./target/release/host precompiled ./path/to/binary.bin '{"inputs": [1, 2, 3]}'
-
-# Test pre-built operations
-./target/release/host add 3.5 2.1
-./target/release/host multiply 2.5 4.0
-./target/release/host sqrt 9.0
-./target/release/host modexp 2 10 1000
-./target/release/host range 25 18 65
-```
-
-### Development Mode Testing
-For faster testing without generating real proofs:
-```bash
-# Set development mode
-export RISC0_DEV_MODE=1
-
-# Run operations (much faster, no real proofs)
-./target/release/host add 3.5 2.1
-```
-
 ## Proof Files
 
 Generated proofs are saved as timestamped binary files in the project directory:
@@ -585,33 +457,6 @@ This server generates authentic ZK-STARK proofs using RISC Zero's zkVM:
 - **Fixed-Point Arithmetic**: Uses scale factor of 10,000 for decimal precision
 
 The generated proofs can be independently verified and provide mathematical certainty that the computation was performed correctly without revealing the computation process. The modular exponentiation operation is particularly suitable for cryptographic applications requiring zero-knowledge proofs of discrete logarithm computations.
-
-## Security Features
-
-### Real Image ID Verification
-
-The server implements **cryptographic image ID verification** to ensure proof authenticity:
-
-- **Computed Image IDs**: Dynamic programs use `compute_image_id()` to generate real cryptographic image IDs from compiled ELF data
-- **No Placeholder IDs**: Eliminates the use of dummy/placeholder image IDs that cause verification failures
-- **Authentic Verification**: Every proof uses the actual cryptographic hash of the executed program
-- **Tamper Detection**: Any modification to the guest program will result in a different image ID and failed verification
-
-### Security Considerations
-
-1. **Code Execution Security**: Dynamic Rust compilation is sandboxed within the RISC Zero zkVM environment
-2. **Docker Isolation**: Build processes run in isolated Docker containers
-3. **Proof Integrity**: Generated proofs are cryptographically bound to the exact code that was executed
-4. **File System Security**: Temporary compilation artifacts are cleaned up after use
-5. **Input Validation**: JSON inputs are validated before being passed to guest programs
-
-### Security Recommendations
-
-1. **Validate Inputs**: Always validate JSON inputs before execution
-2. **Monitor Resources**: Set appropriate limits on proof generation time and memory usage
-3. **Audit Code**: Review dynamic Rust code before execution in production environments
-4. **Secure Storage**: Store proof files in secure locations with appropriate access controls
-5. **Regular Updates**: Keep RISC Zero toolkit and dependencies updated for security patches
 
 ## License
 

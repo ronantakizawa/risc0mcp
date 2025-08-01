@@ -36,7 +36,27 @@ class RiscZeroCodeServer {
     );
 
     // Path where we'll create our RISC Zero code project
-    this.projectPath = path.join(process.cwd(), 'risc0code');
+    // Use absolute path resolution for reliability
+    const scriptDir = path.dirname(new URL(import.meta.url).pathname);
+    const projectRoot = path.resolve(scriptDir, '..');
+    this.projectPath = path.join(projectRoot, 'risc0code');
+    
+    console.error(`[Setup] Looking for RISC Zero project at: ${this.projectPath}`);
+    console.error(`[Setup] Script running from: ${scriptDir}`);
+    console.error(`[Setup] Current working directory: ${process.cwd()}`);
+    
+    // Verify the project and binaries exist
+    if (!fs.existsSync(this.projectPath)) {
+      throw new Error(`RISC Zero project not found at ${this.projectPath}. Please ensure the risc0code project exists.`);
+    }
+    
+    const hostBinary = path.join(this.projectPath, 'target', 'release', 'host');
+    if (!fs.existsSync(hostBinary)) {
+      throw new Error(`RISC Zero host binary not found at ${hostBinary}. Please run: cd risc0code && cargo build --release`);
+    }
+    
+    console.error(`[Setup] ✅ RISC Zero project found at: ${this.projectPath}`);
+    console.error(`[Setup] ✅ Host binary found at: ${hostBinary}`);
 
     this.setupToolHandlers();
     
@@ -866,6 +886,8 @@ class RiscZeroCodeServer {
       
       // Ensure verification tool is built
       const verifyBinary = path.join(this.projectPath, 'target', 'release', 'verify');
+      console.error(`[Verify] Looking for verify binary at: ${verifyBinary}`);
+      console.error(`[Verify] Binary exists: ${fs.existsSync(verifyBinary)}`);
       if (!fs.existsSync(verifyBinary)) {
         console.error('[Verify] Building verification tool...');
         await execAsync('cargo build --release --bin verify', { 
@@ -892,9 +914,9 @@ class RiscZeroCodeServer {
       const output = execResult.stdout;
       const stderr = execResult.stderr;
 
-      // Extract result from output (look for "➡️  Computation result: X")
-      const resultMatch = output.match(/➡️\s*Computation result:\s*(\d+)/);
-      const extractedResult = resultMatch ? parseInt(resultMatch[1], 10) : null;
+      // Extract result from output (look for "➡️  Computation result: ... = X")
+      const resultMatch = output.match(/➡️\s*Computation result:.*?=\s*([-+]?\d*\.?\d+)/);
+      const extractedResult = resultMatch ? parseFloat(resultMatch[1]) : null;
 
       // Check if verification was successful
       const isSuccessful = output.includes('PROOF VERIFICATION SUCCESSFUL');
@@ -906,35 +928,12 @@ class RiscZeroCodeServer {
       const journalBytesMatch = output.match(/Journal bytes:\s*(\[[^\]]+\])/);
       const proofSizeMatch = output.match(/Estimated binary size:\s*(\d+) bytes/);
 
-      // Extract session context from journal for verification
-      let sessionBinding = null;
-      try {
-        if (journalBytesMatch) {
-          // Parse the journal bytes to extract session context
-          const journalStr = journalBytesMatch[1];
-          // Journal format: [session_id_bytes(16), request_nonce(8), ...other_data]
-          // This is a simplified extraction - in production you'd want more robust parsing
-          const sessionContextMatch = output.match(/Session ID:\s*([a-f0-9]{32})/);
-          const nonceMatch = output.match(/Request nonce:\s*(\d+)/);
-          
-          if (sessionContextMatch && nonceMatch) {
-            sessionBinding = {
-              sessionId: sessionContextMatch[1],
-              requestNonce: parseInt(nonceMatch[1], 10),
-              boundToThisSession: false,
-              isAuthentic: false
-            };
-          }
-        }
-      } catch (error) {
-        console.error('[Verify] Failed to extract session context:', error);
-      }
+      // Session binding removed - proofs are verified without session context
 
       const verificationDetails = {
         status: isSuccessful ? 'verified' : 'failed',
         extractedResult,
         verificationTimeMs: endTime - startTime,
-        sessionBinding,
         proofDetails: {
           imageId: imageIdMatch ? imageIdMatch[1] : null,
           journalBytes: journalBytesMatch ? journalBytesMatch[1] : null,
@@ -950,9 +949,7 @@ class RiscZeroCodeServer {
             text: JSON.stringify({
               verification: verificationDetails,
               note: isSuccessful ? 
-                (sessionBinding?.isAuthentic ? 
-                  'Proof verification successful - cryptographically authentic and bound to this MCP session!' :
-                  'Proof verification successful but NOT bound to this MCP session - potential spoofing detected!') :
+                'Proof verification successful - cryptographically authentic!' :
                 'Proof verification failed'
             }, null, 2),
           },

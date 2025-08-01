@@ -5,8 +5,8 @@ use risc0_zkvm::guest::env;
 
 risc0_zkvm::guest::entry!(main);
 
-// Fixed-point arithmetic scale factor (4 decimal places)
-const SCALE: i64 = 10000;
+// Fixed-point arithmetic scale factor (5 decimal places for better precision)
+const SCALE: i64 = 100000;
 
 fn main() {
     // Read the fixed-point input number from the host
@@ -21,7 +21,7 @@ fn main() {
 }
 
 // Fixed-point square root using binary search
-// Input and output are both scaled by SCALE (10000)
+// Input and output are both scaled by SCALE (100000)
 fn fixed_point_sqrt(n_fixed: i64) -> i64 {
     if n_fixed <= 0 {
         return 0;
