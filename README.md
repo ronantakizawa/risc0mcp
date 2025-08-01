@@ -1,8 +1,6 @@
 # RISC Zero MCP Server
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?style=flat&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
-[![Rust](https://img.shields.io/badge/Rust-000000?style=flat&logo=rust&logoColor=white)](https://www.rust-lang.org/)
 
 A Model Context Protocol (MCP) server that provides zero-knowledge proof computation using RISC Zero zkVM. This server supports dynamic Rust code execution, pre-built mathematical operations, and cryptographic proof generation with real image ID verification.
 
@@ -36,43 +34,246 @@ The project consists of:
 
 - **Node.js 18+** with npm
 - **Rust toolchain** (1.70+) with cargo
-- **RISC Zero toolkit** (`cargo install cargo-risczero && cargo risczero install`)
+- **RISC Zero toolkit** for zero-knowledge proof generation
 - **Docker** (for dynamic Rust compilation)
 - **Git** (for cloning the repository)
 
 ## Installation
 
-1. Clone the repository:
+### Step 1: Clone the Repository
 ```bash
-git clone <repository-url>
+git clone https://github.com/ronantakizawa/risc0mcp.git
 cd risc0mcp
 ```
 
-2. Install Node.js dependencies:
+### Step 2: Install Rust and RISC Zero Toolkit
+```bash
+# Install Rust (if not already installed)
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+source $HOME/.cargo/env
+
+# Install RISC Zero toolkit
+cargo install cargo-risczero --version ^2.3.1
+cargo risczero install
+```
+
+### Step 3: Install Node.js Dependencies
 ```bash
 npm install
 ```
 
-3. Build the TypeScript server:
+### Step 4: Build the Project
 ```bash
+# Build TypeScript MCP server
 npm run build
-```
 
-4. Build the RISC Zero project:
-```bash
+# Build RISC Zero host and verification binaries
 cd risc0code
 cargo build --release
 cd ..
 ```
 
+### Step 5: Start Docker (Required for Dynamic Compilation)
+Make sure Docker is running on your system:
+```bash
+# On macOS/Linux
+docker --version
+
+# Start Docker if not running
+# On macOS: Open Docker Desktop
+# On Linux: sudo systemctl start docker
+```
+
+## Setup with Claude Desktop
+
+### Step 1: Configure Claude Desktop
+Add the RISC Zero MCP server to your Claude Desktop configuration file:
+
+**On macOS:**
+```bash
+# Edit Claude Desktop config
+code ~/Library/Application\ Support/Claude/claude_desktop_config.json
+```
+
+**On Windows:**
+```bash
+# Edit Claude Desktop config
+notepad %APPDATA%\Claude\claude_desktop_config.json
+```
+
+**On Linux:**
+```bash
+# Edit Claude Desktop config
+code ~/.config/Claude/claude_desktop_config.json
+```
+
+### Step 2: Add MCP Server Configuration
+Add the following configuration to your `claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "risc0-zkvm": {
+      "command": "node",
+      "args": ["/absolute/path/to/risc0mcp/dist/index.js"],
+      "env": {
+        "RISC0_DEV_MODE": "0"
+      }
+    }
+  }
+}
+```
+
+**Important:** Replace `/absolute/path/to/risc0mcp` with the full path to your cloned repository.
+
+**Example paths:**
+- macOS: `/Users/yourname/risc0mcp/dist/index.js`
+- Windows: `C:\\Users\\yourname\\risc0mcp\\dist\\index.js`
+- Linux: `/home/yourname/risc0mcp/dist/index.js`
+
+### Step 3: Environment Configuration
+
+**For Development Mode (Faster, No Real Proofs):**
+```json
+{
+  "mcpServers": {
+    "risc0-zkvm": {
+      "command": "node",
+      "args": ["/absolute/path/to/risc0mcp/dist/index.js"],
+      "env": {
+        "RISC0_DEV_MODE": "1"
+      }
+    }
+  }
+}
+```
+
+**For Production Mode (Real ZK-STARK Proofs):**
+```json
+{
+  "mcpServers": {
+    "risc0-zkvm": {
+      "command": "node",
+      "args": ["/absolute/path/to/risc0mcp/dist/index.js"],
+      "env": {
+        "RISC0_DEV_MODE": "0"
+      }
+    }
+  }
+}
+```
+
+### Step 4: Restart Claude Desktop
+After updating the configuration:
+1. **Quit Claude Desktop completely**
+2. **Restart Claude Desktop**
+3. **Wait for initialization** (may take 10-15 seconds)
+
+### Step 5: Verify Installation
+In Claude Desktop, try asking:
+> "Can you add 3.5 and 2.1 using the RISC Zero zkVM?"
+
+Claude should respond with a zero-knowledge proof of the computation!
+
 ## Usage
 
-### Running the MCP Server
+The MCP server runs automatically when Claude Desktop starts. You can interact with it through natural language in Claude Desktop.
 
-Start the server in stdio mode:
+### Example Prompts
+
+**Mathematical Operations:**
+- "Add 15.7 and 23.4 using zero-knowledge proofs"
+- "Calculate the square root of 144 with cryptographic verification"
+- "Multiply 2.5 by 8.3 and generate a ZK proof"
+
+**Cryptographic Operations:**
+- "Compute 2^10 mod 1000 using modular exponentiation"
+- "Prove that my secret number is between 18 and 65 (range proof)"
+
+**Dynamic Rust Execution:**
+- "Execute this Rust code in the zkVM: [paste your Rust code]"
+- "Compile and run a Fibonacci function for n=10"
+
+### Environment Modes
+
+**Development Mode** (`RISC0_DEV_MODE=1`):
+- ⚡ Fast execution (~1-2 seconds)
+- ❌ No real cryptographic proofs
+- ✅ Great for testing and development
+
+**Production Mode** (`RISC0_DEV_MODE=0`):
+- 🐌 Slower execution (~3-5 seconds)
+- ✅ Real ZK-STARK proofs
+- 🔐 Cryptographically verifiable results
+
+## Troubleshooting
+
+### Common Issues
+
+**"MCP server failed to start"**
 ```bash
-node dist/index.js
+# Check if Node.js can find the script
+node /absolute/path/to/risc0mcp/dist/index.js
+
+# Verify the path exists
+ls -la /absolute/path/to/risc0mcp/dist/index.js
 ```
+
+**"RISC Zero binary not found"**
+```bash
+# Rebuild the RISC Zero binaries
+cd risc0code
+cargo build --release
+
+# Verify binaries exist
+ls -la target/release/host
+ls -la target/release/verify
+```
+
+**"Docker connection failed"**
+```bash
+# Check Docker is running
+docker ps
+
+# Test Docker access
+docker run hello-world
+```
+
+**"Rust/Cargo not found"**
+```bash
+# Ensure Rust is in your PATH
+which cargo
+source $HOME/.cargo/env
+
+# Verify RISC Zero installation
+cargo risczero --version
+```
+
+**"TypeScript build errors"**
+```bash
+# Clean and rebuild
+rm -rf dist node_modules
+npm install
+npm run build
+```
+
+### Getting Help
+
+1. **Check the Claude Desktop logs** for detailed error messages
+2. **Run the MCP server directly** to see console output:
+   ```bash
+   cd risc0mcp
+   RISC0_DEV_MODE=1 node dist/index.js
+   ```
+3. **Verify all prerequisites** are installed and working
+4. **Check file permissions** on the dist/index.js file
+
+### Performance Tips
+
+- Use **Development Mode** for testing and experimentation
+- Use **Production Mode** only when you need verifiable proofs
+- **Docker startup** can take 30-60 seconds for the first dynamic compilation
+- **Proof files** are saved in the project directory for verification
 
 ### Available Tools
 
