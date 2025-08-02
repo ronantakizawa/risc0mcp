@@ -4,6 +4,8 @@
 
 A Model Context Protocol (MCP) server that provides zero-knowledge proof computation using RISC Zero zkVM. This server supports dynamic Rust code execution, pre-built mathematical operations, and cryptographic proof generation with real image ID verification.
 
+https://github.com/user-attachments/assets/c32eec35-3bb5-42a5-b855-73100dfd3ff6
+
 ## Features
 
 - **🚀 Dynamic Rust Execution**: Compile and execute arbitrary Rust code in the zkVM
