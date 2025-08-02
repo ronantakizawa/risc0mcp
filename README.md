@@ -123,7 +123,8 @@ Add the following configuration to your `claude_desktop_config.json`:
         "PATH": "/Users/ronantakizawa/.cargo/bin:/Users/ronantakizawa/.risc0/bin:/usr/local/bin:/usr/bin:/bin",
         "CARGO_HOME": "/Users/ronantakizawa/.cargo",
         "RUSTUP_HOME": "/Users/ronantakizawa/.rustup"
-      }
+      },
+      "toolCallTimeoutMillis": 600000
     }
   }
 }

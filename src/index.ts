@@ -311,17 +311,26 @@ class RiscZeroCodeServer {
       console.error('[Setup] Building RISC Zero project...');
       try {
         if (forceRebuild) {
-          console.error('[Setup] Force rebuild requested, cleaning first...');
-          await execAsync('cargo clean', { cwd: this.projectPath });
+          console.error('[Setup] Force rebuild requested, cleaning only target directory...');
+          // Only clean the release target to speed up rebuild
+          await execAsync('rm -rf target/release', { 
+            cwd: this.projectPath,
+            timeout: 30000 
+          });
         }
         
-        // Build the project with extended timeout
-        await execAsync('cargo build --release', { 
+        // Build only the host binary for faster rebuild
+        console.error('[Setup] Building host binary only...');
+        await execAsync('cargo build --release --bin host', { 
           cwd: this.projectPath,
-          timeout: 600000 // 10 minutes timeout for build
+          timeout: 120000, // 2 minutes timeout for host build only
+          env: {
+            ...process.env,
+            RISC0_DEV_MODE: '0'
+          }
         });
         
-        console.error('[Setup] RISC Zero project built successfully');
+        console.error('[Setup] RISC Zero host binary built successfully');
       } catch (error) {
         throw new Error(`Failed to build RISC Zero project: ${error instanceof Error ? error.message : String(error)}`);
       }
@@ -376,7 +385,7 @@ class RiscZeroCodeServer {
         const execResult = await execAsync(command, { 
           cwd: this.projectPath, 
           env,
-          timeout: 60000 // Should complete within MCP inspector timeout now
+          timeout: 90000 // 90 seconds timeout for operations
         });
         
         const endTime = Date.now();
@@ -503,7 +512,7 @@ class RiscZeroCodeServer {
         const execResult = await execAsync(command, { 
           cwd: this.projectPath, 
           env,
-          timeout: 60000 // Should complete within MCP inspector timeout now
+          timeout: 90000 // 90 seconds timeout for operations
         });
         
         const endTime = Date.now();
@@ -635,7 +644,7 @@ class RiscZeroCodeServer {
         const execResult = await execAsync(command, { 
           cwd: this.projectPath, 
           env,
-          timeout: 60000 // Should complete within MCP inspector timeout now
+          timeout: 90000 // 90 seconds timeout for operations
         });
         
         const endTime = Date.now();
@@ -778,7 +787,7 @@ class RiscZeroCodeServer {
         const execResult = await execAsync(command, { 
           cwd: this.projectPath, 
           env,
-          timeout: 60000 // Should complete within MCP inspector timeout now
+          timeout: 90000 // 90 seconds timeout for operations
         });
         
         const endTime = Date.now();
@@ -892,7 +901,7 @@ class RiscZeroCodeServer {
         console.error('[Verify] Building verification tool...');
         await execAsync('cargo build --release --bin verify', { 
           cwd: this.projectPath,
-          timeout: 300000 // 5 minutes timeout for build
+          timeout: 180000 // 3 minutes timeout for build
         });
       }
 
@@ -904,7 +913,7 @@ class RiscZeroCodeServer {
       
       const execResult = await execAsync(command, { 
         cwd: this.projectPath,
-        timeout: 30000 // 30 seconds should be plenty for verification
+        timeout: 60000 // 1 minute timeout for verification
       });
 
       const endTime = Date.now();
@@ -1085,7 +1094,7 @@ class RiscZeroCodeServer {
         const execResult = await execAsync(command, { 
           cwd: this.projectPath, 
           env,
-          timeout: 300000 // 5 minutes timeout for dynamic code
+          timeout: 240000 // 4 minutes timeout for dynamic code
         });
         
         const endTime = Date.now();
@@ -1321,22 +1330,43 @@ fn user_computation(inputs: &Value, inputs_json: &str) -> Value {
     try {
       if (forceRebuild) {
         console.error(`[Dynamic] Force rebuild requested, cleaning first...`);
-        await execAsync('cargo clean', { cwd: this.projectPath, timeout: 30000 });
+        await execAsync('cargo clean', { cwd: this.projectPath, timeout: 60000 });
       }
       
       // Build using the methods build system with shorter timeout to fit MCP limits
       console.error(`[Dynamic] Building with RISC Zero methods build system...`);
       console.error(`[Dynamic] Building`);
       
-      // Use a shorter timeout to avoid MCP request timeout
-      await execAsync('cargo build --release', {
-        cwd: this.projectPath,
-        timeout: 25000, // 25 seconds to fit within MCP timeout
-        env: {
-          ...process.env,
-          RISC0_DEV_MODE: '0'
-        }
-      });
+      // For production use, we need to build through the methods system
+      // Try an incremental build approach to reduce build time
+      console.error(`[Dynamic] Attempting incremental build...`);
+      
+      try {
+        // Use cargo check first to validate without full compilation
+        await execAsync('cargo check --release', {
+          cwd: this.projectPath,
+          timeout: 60000, // 1 minute for check
+          env: {
+            ...process.env,
+            RISC0_DEV_MODE: '0'
+          }
+        });
+        
+        // Then do the actual build with limited timeout
+        await execAsync('cargo build --release --bin host', {
+          cwd: this.projectPath,
+          timeout: 180000, // 3 minutes for host build
+          env: {
+            ...process.env,
+            RISC0_DEV_MODE: '0'
+          }
+        });
+        
+      } catch (buildError) {
+        console.error(`[Dynamic] Incremental build failed, trying minimal approach...`);
+        // If that fails, provide a helpful error message
+        throw new Error(`Build timed out. The dynamic code compilation is taking too long for the MCP timeout. Please pre-build the project with: cd ${this.projectPath} && cargo build --release`);
+      }
       
       console.error(`[Dynamic] Guest program built successfully`);
     } catch (error) {

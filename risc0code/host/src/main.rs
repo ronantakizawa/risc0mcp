@@ -54,6 +54,7 @@ fn modular_exponentiation_host(mut base: u64, mut exponent: u64, modulus: u64) -
 
 // Integer square root using binary search
 // Returns the largest integer x such that x² ≤ n
+#[allow(dead_code)]
 fn integer_sqrt(n: u32) -> u32 {
     if n == 0 {
         return 0;
@@ -154,7 +155,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Handle dynamic elf data separately to manage lifetimes
     let dynamic_elf_data: Option<Vec<u8>> = if operation == "dynamic" || operation == "precompiled" {
         let guest_program_path = &args[2];
-        let inputs_json = &args[3];
+        let _inputs_json = &args[3];
         
         if operation == "precompiled" {
             eprintln!("🔧 Loading precompiled guest program: {}", guest_program_path);
@@ -256,7 +257,7 @@ path = "src/main.rs"
         },
         "sqrt" => {
             let n_decimal: f64 = args[2].parse().expect("Second argument must be a positive number");
-            let n_fixed = decimal_to_fixed_point(n_decimal);
+            let _n_fixed = decimal_to_fixed_point(n_decimal);
             let expected_fixed = if n_decimal >= 0.0 {
                 decimal_to_fixed_point(n_decimal.sqrt())
             } else {
@@ -352,7 +353,7 @@ path = "src/main.rs"
             let inputs_json = &args[3];
             
             // Parse inputs JSON and write to environment
-            let inputs: serde_json::Value = serde_json::from_str(inputs_json)
+            let _inputs: serde_json::Value = serde_json::from_str(inputs_json)
                 .map_err(|e| format!("Invalid JSON inputs: {}", e))?;
             
             ExecutorEnv::builder()
@@ -384,7 +385,7 @@ path = "src/main.rs"
     
     // Extract the result from the receipt's journal
     eprintln!("📖 Extracting result from receipt journal...");
-    let (decimal_result, result_for_json) = match operation.as_str() {
+    let (decimal_result, _result_for_json) = match operation.as_str() {
         "sqrt" => {
             // For sqrt, manually decode the bytes for fixed-point values (i64)
             let bytes = &receipt.journal.bytes;
