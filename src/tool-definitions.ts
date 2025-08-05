@@ -145,9 +145,7 @@ export const toolDefinitions = [
         inputs: {
           type: 'array',
           description: 'Array of inputs to pass to the Rust program (will be serialized as JSON)',
-          items: {
-            type: 'any'
-          },
+          items: {},
           default: []
         },
         forceRebuild: {
@@ -172,9 +170,7 @@ export const toolDefinitions = [
         inputs: {
           type: 'array',
           description: 'Array of inputs to pass to the Rust program (will be serialized as JSON)',
-          items: {
-            type: 'any'
-          },
+          items: {},
           default: []
         },
         forceRebuild: {

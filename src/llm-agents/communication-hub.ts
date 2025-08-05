@@ -1,6 +1,6 @@
 import { ProverAgent } from './prover-agent.js';
 import { VerifierAgent } from './verifier-agent.js';
-import { Message } from './base-agent.js';
+import { Message } from './proper-mcp-agent.js';
 
 export class CommunicationHub {
   private prover: ProverAgent;
@@ -28,7 +28,7 @@ export class CommunicationHub {
     console.log('\n🎭 Starting ZK Proof Conversation Between LLMs...\n');
 
     try {
-      // Stage 1: Verifier initiates the conversation
+      // Stage 1: Initial conversation
       console.log('=== STAGE 1: INITIAL CONVERSATION ===');
       const initialMessage: Message = {
         from: 'VerifierAgent',
@@ -41,7 +41,7 @@ export class CommunicationHub {
       this.logMessage(initialMessage);
       const proverResponses = await this.prover.handleMessage(initialMessage);
 
-      // Stage 2: Process prover's responses (claim + proof)
+      // Stage 2: Process prover's responses
       console.log('\n=== STAGE 2: PROOF GENERATION ===');
       for (const proverResponse of proverResponses) {
         this.logMessage(proverResponse);
@@ -57,22 +57,7 @@ export class CommunicationHub {
         await this.sleep(1000);
       }
 
-      // Stage 3: Final exchange
-      console.log('\n=== STAGE 3: VERIFICATION COMPLETE ===');
-      const finalMessage: Message = {
-        from: 'VerifierAgent',
-        to: 'ProverAgent',
-        type: 'chat',
-        content: 'Thank you for providing the zero-knowledge proof. This demonstrates how mathematical claims can be verified cryptographically without revealing the computation details. The RISC Zero zkVM proof provides strong guarantees about the correctness of your calculation.',
-        timestamp: Date.now()
-      };
-
-      this.logMessage(finalMessage);
-      const finalResponses = await this.prover.handleMessage(finalMessage);
-
-      for (const response of finalResponses) {
-        this.logMessage(response);
-      }
+      console.log('\n=== CONVERSATION COMPLETE ===');
 
     } catch (error) {
       console.error('❌ Error during conversation:', error);
@@ -96,41 +81,35 @@ export class CommunicationHub {
 
     for (const response of responses) {
       this.logMessage(response);
-      
-      if (response.zkProof) {
-        // Send proof to verifier
-        const verifierResponses = await this.verifier.handleMessage(response);
-        for (const verifierResponse of verifierResponses) {
-          this.logMessage(verifierResponse);
-        }
-      }
     }
   }
 
   private logMessage(message: Message): void {
     this.messageHistory.push(message);
     
+    // Format the message for display
     const timestamp = new Date(message.timestamp).toLocaleTimeString();
-    const prefix = message.type === 'proof' ? '🔐' : 
-                  message.type === 'verification' ? '🔍' : 
-                  message.type === 'claim' ? '🗣️' : '💬';
+    const typeEmoji = this.getTypeEmoji(message.type);
     
-    console.log(`\n${prefix} [${timestamp}] ${message.from} → ${message.to}`);
-    console.log(`Type: ${message.type.toUpperCase()}`);
+    console.log(`\n[${timestamp}] ${typeEmoji} ${message.from} → ${message.to}:`);
+    console.log(`${message.content}`);
     
-    if (message.zkProof) {
-      console.log(`🔐 ZK Proof Attached:`);
-      console.log(`   Operation: ${message.zkProof.operation}`);
-      console.log(`   Inputs: ${JSON.stringify(message.zkProof.inputs)}`);
-      console.log(`   Result: ${message.zkProof.result}`);
-      console.log(`   Verification: ${message.zkProof.verificationStatus}`);
-      console.log(`   Proof File: ${message.zkProof.proofFilePath}`);
+    if (message.toolResults && message.toolResults.length > 0) {
+      console.log(`🔧 Tools used: ${message.toolResults.length}`);
+      message.toolResults.forEach((result, i) => {
+        console.log(`   ${i+1}. ${result.toolName}`);
+      });
     }
-    
-    // Format content with proper line breaks
-    const formattedContent = message.content.replace(/\n/g, '\n   ');
-    console.log(`Content:\n   ${formattedContent}`);
-    console.log('─'.repeat(80));
+  }
+
+  private getTypeEmoji(type: string): string {
+    switch (type) {
+      case 'claim': return '💬';
+      case 'proof': return '🔐';
+      case 'verification': return '✅';
+      case 'chat': return '💭';
+      default: return '📝';
+    }
   }
 
   private async sleep(ms: number): Promise<void> {
@@ -143,27 +122,27 @@ export class CommunicationHub {
 
   public async demonstrateProofVerificationFlow(): Promise<void> {
     console.log('\n🔬 DEMONSTRATING COMPLETE ZK PROOF FLOW\n');
+    console.log('This is a simplified demonstration using the new LLM-driven approach.');
+    console.log('For full functionality, use the prover-client and verifier-server workflow.');
 
     try {
-      // Step 1: Generate proof
-      console.log('Step 1: Generating ZK proof for 1 + 1...');
-      const zkProof = await this.prover.generateProofForComputation(1, 1);
-      console.log('✅ Proof generated');
+      // Generate a proof using the LLM-driven approach
+      const message: Message = {
+        from: 'Demo',
+        to: 'ProverAgent',
+        type: 'chat',
+        content: 'Can you prove that 1 + 1 = 2?',
+        timestamp: Date.now()
+      };
 
-      // Step 2: Verify proof
-      console.log('Step 2: Verifying the proof...');
-      const isValid = await this.verifier.verifyProof(zkProof);
-      console.log(`✅ Proof verification result: ${isValid ? 'VALID' : 'INVALID'}`);
-
-      // Step 3: Show detailed results
-      console.log('\n📊 DETAILED RESULTS:');
-      console.log(`Operation: ${zkProof.operation}`);
-      console.log(`Inputs: ${JSON.stringify(zkProof.inputs)}`);
-      console.log(`Result: ${zkProof.result}`);
-      console.log(`Image ID: ${zkProof.imageId}`);
-      console.log(`Verification Status: ${zkProof.verificationStatus}`);
-      console.log(`Proof File: ${zkProof.proofFilePath}`);
-      console.log(`Authentication Verified: ${zkProof.authentication?.verified}`);
+      console.log('Step 1: Asking ProverAgent to generate proof...');
+      const responses = await this.prover.handleMessage(message);
+      
+      console.log('✅ ProverAgent completed processing');
+      
+      for (const response of responses) {
+        this.logMessage(response);
+      }
 
     } catch (error) {
       console.error('❌ Demonstration failed:', error);
@@ -172,11 +151,11 @@ export class CommunicationHub {
   }
 
   public async cleanup(): Promise<void> {
-    console.log('\n🧹 Cleaning up agents...');
+    console.log('\n🧹 Cleaning up resources...');
     await Promise.all([
       this.prover.cleanup(),
       this.verifier.cleanup()
     ]);
-    console.log('✅ Cleanup complete');
+    console.log('✅ Cleanup completed');
   }
 }

@@ -1,153 +1,84 @@
-import { BaseLLMAgent, Message, ZkProof } from './base-agent.js';
+import { ProperMCPAgent, Message } from './proper-mcp-agent.js';
 
-export class ProverAgent extends BaseLLMAgent {
+export class ProverAgent extends ProperMCPAgent {
   constructor(apiKey: string) {
     super('ProverAgent', apiKey);
   }
 
   public async start(): Promise<void> {
     await this.startMCPServer();
-    console.log(`[${this.name}] Prover agent started and ready to generate ZK proofs`);
+    console.log(`[${this.name}] Prover agent started with LLM-driven tool calling`);
   }
 
   public async handleMessage(message: Message): Promise<Message[]> {
     this.addToHistory(message);
 
-    if (message.type === 'chat' && (
-      message.content.toLowerCase().includes('1+1') || 
-      message.content.toLowerCase().includes('1 + 1') ||
-      message.content.toLowerCase().includes('what 1 + 1 equals') ||
-      message.content.toLowerCase().includes('1 plus 1')
-    )) {
-      return await this.handleComputationRequest(message);
-    }
+    const systemPrompt = `You are a ProverAgent that specializes in generating zero-knowledge proofs for mathematical computations using RISC Zero zkVM.
 
-    // Default response for other messages
-    const systemPrompt = `You are a Prover Agent that specializes in generating zero-knowledge proofs for mathematical computations.
-    
-Your role:
-- When someone asks about mathematical computations, you generate ZK proofs to prove your claims
-- You use RISC Zero zkVM to create cryptographically secure proofs
+Your role and capabilities:
+- You have access to RISC Zero zkVM tools that can generate real cryptographic zero-knowledge proofs
+- When someone asks about mathematical computations, you should use the appropriate zkVM tools to prove your claims
+- You can perform addition, multiplication, square root, modular exponentiation, and range proofs
+- You can also execute arbitrary Rust code in the zkVM for custom computations
 - You are confident and technical in your explanations
-- You always back up your claims with verifiable proofs
+- You always back up your mathematical claims with verifiable zero-knowledge proofs
+
+Available RISC Zero zkVM tools:
+- zkvm_add: Add two numbers with ZK proof
+- zkvm_multiply: Multiply two numbers with ZK proof  
+- zkvm_sqrt: Calculate square root with ZK proof
+- zkvm_modexp: Modular exponentiation with ZK proof
+- zkvm_range: Range proof (prove a secret number is within a range)
+- zkvm_authenticated_add: Addition with authentication
+- zkvm_run_rust_code: Execute custom Rust code in zkVM
+- zkvm_run_rust_file: Execute Rust file in zkVM
+
+IMPORTANT: When you use any zkVM tool that generates a proof, you MUST include the complete proof file path in your response. The proof file path is provided in the tool result and typically looks like "/path/to/proof_operation_timestamp.bin". Always mention this exact file path in your response so other systems can locate and verify the proof.
+
+When appropriate, choose the right tool to generate a proof for the mathematical claim being made.
 
 Current conversation context:
 ${this.getConversationContext()}`;
 
-    const response = await this.chatWithGPT(systemPrompt, message.content);
-    
-    return [{
-      from: this.name,
-      to: message.from,
-      type: 'chat',
-      content: response,
-      timestamp: Date.now()
-    }];
-  }
-
-  private async handleComputationRequest(message: Message): Promise<Message[]> {
-    console.log(`[${this.name}] Handling computation request for 1+1`);
-
     try {
-      // First, respond with the claim
-      const claimResponse: Message = {
-        from: this.name,
-        to: message.from,
-        type: 'claim',
-        content: `I claim that 1 + 1 = 2. Let me prove this using a zero-knowledge proof with RISC Zero zkVM. This will generate cryptographic evidence that I performed this computation correctly without revealing the internal execution details.`,
-        timestamp: Date.now()
-      };
-
-      // Generate the ZK proof
-      console.log(`[${this.name}] Generating ZK proof for 1+1...`);
-      const proofResult = await this.callMCPTool('zkvm_authenticated_add', {
-        a: 1,
-        b: 1,
-        keyId: 'default'
-      });
-
-      console.log(`[${this.name}] ZK proof generated successfully`);
-
-      // Parse the proof result
-      const proofData = JSON.parse(proofResult.content[0].text);
+      // Let the LLM decide whether and which tools to use
+      const completion = await this.callLLMWithTools(systemPrompt, message.content);
+      const result = await this.processLLMResponse(completion);
       
-      const zkProof: ZkProof = {
-        operation: 'authenticated_add',
-        inputs: { a: 1, b: 1 },
-        result: proofData.computation.result,
-        imageId: proofData.zkProof.imageId,
-        verificationStatus: proofData.zkProof.verificationStatus,
-        proofFilePath: proofData.zkProof.proofFilePath,
-        authentication: proofData.authentication
-      };
-
-      // Create proof message with detailed explanation
-      const proofMessage: Message = {
-        from: this.name,
-        to: message.from,
-        type: 'proof',
-        content: `Here is my zero-knowledge proof that 1 + 1 = 2:
-
-🔍 **Computation Details:**
-- Operation: Addition (1 + 1)
-- Result: ${zkProof.result}
-- Correct: ${proofData.computation.correct}
-
-🔐 **ZK Proof Details:**
-- Image ID: ${zkProof.imageId}
-- Verification Status: ${zkProof.verificationStatus}
-- Proof File: ${zkProof.proofFilePath}
-
-✍️ **Authentication:**
-- Digital Signature Verified: ${proofData.authentication.verified}
-- Public Key: ${proofData.authentication.publicKey}
-- Signature: ${proofData.authentication.signature?.substring(0, 32)}...
-
-This proof demonstrates that:
-1. I executed the computation 1 + 1 inside a RISC Zero zkVM
-2. The computation was performed correctly and resulted in 2
-3. The proof is cryptographically signed and authenticated
-4. You can verify this proof independently without trusting me
-
-The proof file contains a STARK proof that you can verify to confirm the computation was performed correctly.`,
-        zkProof,
-        timestamp: Date.now()
-      };
-
-      return [claimResponse, proofMessage];
-
-    } catch (error) {
-      console.error(`[${this.name}] Error generating proof:`, error);
+      // Handle both old string return and new object return
+      let response: string;
+      let toolResults: any[] = [];
+      let toolCalls: any[] = [];
+      
+      if (typeof result === 'string') {
+        response = result;
+      } else {
+        const resultObj = result as any;
+        response = resultObj.response || result;
+        toolResults = resultObj.toolResults || [];
+        toolCalls = resultObj.toolCalls || [];
+      }
       
       return [{
         from: this.name,
         to: message.from,
         type: 'chat',
-        content: `I apologize, but I encountered an error while generating the zero-knowledge proof: ${error instanceof Error ? error.message : String(error)}. This might be due to the RISC Zero system not being properly set up or the MCP server being unavailable.`,
+        content: response,
+        timestamp: Date.now(),
+        toolCalls: toolCalls,
+        toolResults: toolResults
+      }];
+
+    } catch (error) {
+      console.error(`[${this.name}] Error processing message:`, error);
+      
+      return [{
+        from: this.name,
+        to: message.from,
+        type: 'chat',
+        content: `I apologize, but I encountered an error while processing your request: ${error instanceof Error ? error.message : String(error)}. This might be due to the RISC Zero system not being properly set up or the MCP server being unavailable.`,
         timestamp: Date.now()
       }];
     }
-  }
-
-  public async generateProofForComputation(a: number, b: number): Promise<ZkProof> {
-    console.log(`[${this.name}] Generating proof for ${a} + ${b}`);
-    
-    const result = await this.callMCPTool('zkvm_authenticated_add', {
-      a,
-      b,
-      keyId: 'default'
-    });
-
-    const proofData = JSON.parse(result.content[0].text);
-    
-    return {
-      operation: 'authenticated_add',
-      inputs: { a, b },
-      result: proofData.computation.result,
-      imageId: proofData.zkProof.imageId,
-      verificationStatus: proofData.zkProof.verificationStatus,
-      proofFilePath: proofData.zkProof.proofFilePath,
-      authentication: proofData.authentication
-    };
   }
 }

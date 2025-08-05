@@ -20,6 +20,8 @@ export interface Message {
   content: string;
   zkProof?: ZkProof;
   timestamp: number;
+  toolCalls?: any[];
+  toolResults?: any[];
 }
 
 export abstract class BaseLLMAgent {

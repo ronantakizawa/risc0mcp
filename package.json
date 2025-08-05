@@ -16,6 +16,10 @@
     "build": "tsc && shx chmod +x dist/*.js",
     "prepare": "npm run build",
     "start": "node dist/index.js",
+    "mcp-server": "node dist/index.js",
+    "verifier-server": "node dist/llm-agents/verifier-server.js",
+    "prover-client": "node dist/llm-agents/prover-client.js",
+    "demo": "node dist/llm-agents/main.js",
     "encrypt-keys": "npm run build && node dist/scripts/encrypt-keys.js"
   },
   "keywords": [
@@ -36,9 +40,14 @@
     "@noble/ed25519": "^2.3.0",
     "axios": "^1.6.0",
     "child_process": "^1.0.2",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.1",
+    "express": "^5.1.0",
     "openai": "^5.11.0"
   },
   "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.3",
     "@types/node": "^20.9.0",
     "shx": "^0.3.4",
     "typescript": "^5.2.2"
