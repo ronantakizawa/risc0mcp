@@ -9,6 +9,8 @@ export interface Message {
   timestamp: number;
   toolCalls?: any[];
   toolResults?: any[];
+  proofData?: string;
+  proofSize?: number;
 }
 
 export abstract class ProperMCPAgent {
@@ -17,6 +19,7 @@ export abstract class ProperMCPAgent {
   protected mcpProcess: ChildProcess | null = null;
   protected conversationHistory: Message[] = [];
   protected toolDefinitions: any[] = [];
+  protected currentMessage: Message | null = null;
 
   constructor(name: string, apiKey: string) {
     this.name = name;
@@ -89,7 +92,11 @@ export abstract class ProperMCPAgent {
     });
   }
 
-  protected async callLLMWithTools(systemPrompt: string, userMessage: string): Promise<OpenAI.Chat.Completions.ChatCompletion> {
+  protected async callLLMWithTools(systemPrompt: string, userMessage: string, message?: Message): Promise<OpenAI.Chat.Completions.ChatCompletion> {
+    // Store current message for proof data injection
+    if (message) {
+      this.currentMessage = message;
+    }
     try {
       // Convert MCP tool definitions to OpenAI function format
       const functions = this.toolDefinitions.map(tool => ({
@@ -196,7 +203,15 @@ export abstract class ProperMCPAgent {
       console.log(`[${this.name}] Tool arguments:`, toolCall.function.arguments);
 
       try {
-        const args = JSON.parse(toolCall.function.arguments);
+        let args = JSON.parse(toolCall.function.arguments);
+        
+        // Special handling for verify_proof_data - inject actual proof data from message
+        if (toolCall.function.name === 'verify_proof_data' && this.currentMessage?.proofData) {
+          console.log(`[${this.name}] Injecting actual proof data into tool arguments`);
+          args.proofData = this.currentMessage.proofData;
+          args.proofSize = this.currentMessage.proofSize;
+        }
+        
         const result = await this.executeMCPTool(toolCall.function.name, args);
         toolResults.push({
           toolName: toolCall.function.name,

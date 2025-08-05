@@ -109,6 +109,24 @@ class ProverAgentClient {
       if (response.toolResults && response.toolResults.length > 0) {
         for (const toolResult of response.toolResults) {
           if (toolResult.result && typeof toolResult.result === 'object') {
+            // Try to access nested structure directly first
+            if (toolResult.result.content && Array.isArray(toolResult.result.content)) {
+              for (const contentItem of toolResult.result.content) {
+                if (contentItem.text) {
+                  try {
+                    const parsedContent = JSON.parse(contentItem.text);
+                    if (parsedContent.zkProof && parsedContent.zkProof.proofFilePath) {
+                      console.log(`🎯 Found proof file path in parsed content: ${parsedContent.zkProof.proofFilePath}`);
+                      return parsedContent.zkProof.proofFilePath;
+                    }
+                  } catch (e) {
+                    // Not JSON, continue
+                  }
+                }
+              }
+            }
+            
+            // Fallback to string pattern matching
             const resultStr = JSON.stringify(toolResult.result);
             
             // Look for proof file paths in tool results
@@ -122,6 +140,7 @@ class ProverAgentClient {
             for (const pattern of patterns) {
               const match = pattern.exec(resultStr);
               if (match && match[1]) {
+                console.log(`🎯 Found proof file path in pattern match: ${match[1]}`);
                 return match[1];
               }
             }
@@ -164,6 +183,21 @@ class ProverAgentClient {
     console.log('📝 Response content preview:');
     responses.forEach((response, i) => {
       console.log(`[${i+1}] ${response.content.substring(0, 200)}...`);
+      
+      // Debug tool results structure
+      if (response.toolResults && response.toolResults.length > 0) {
+        console.log(`🔧 Tool results for response ${i+1}:`);
+        response.toolResults.forEach((toolResult: any, j: number) => {
+          console.log(`   Tool ${j+1}: ${toolResult.toolName}`);
+          console.log(`   Result type: ${typeof toolResult.result}`);
+          if (toolResult.result && typeof toolResult.result === 'object') {
+            console.log(`   Result keys: ${Object.keys(toolResult.result).join(', ')}`);
+            console.log(`   Result JSON: ${JSON.stringify(toolResult.result, null, 2).substring(0, 500)}...`);
+          } else {
+            console.log(`   Result: ${String(toolResult.result).substring(0, 200)}...`);
+          }
+        });
+      }
     });
     
     return null;
@@ -186,10 +220,27 @@ class ProverAgentClient {
         return;
       }
 
-      // Send verification request
-      console.log('📤 Sending verification request...');
+      // Read the proof file as binary data
+      console.log('📖 Reading proof file...');
+      const fs = await import('fs');
+      
+      // Verify file exists and get stats
+      if (!fs.existsSync(proofFilePath)) {
+        throw new Error(`Proof file not found: ${proofFilePath}`);
+      }
+      
+      const fileStats = fs.statSync(proofFilePath);
+      console.log(`📁 File stats: ${fileStats.size} bytes`);
+      
+      const proofData = fs.readFileSync(proofFilePath);
+      console.log(`📦 Read ${proofData.length} bytes of binary proof data`);
+
+      // Send verification request with binary proof data
+      console.log('📤 Sending verification request with binary proof data...');
       const response = await axios.post(`${this.verifierUrl}/verify-proof`, {
-        proofFilePath,
+        proofData: proofData,
+        proofSize: proofData.length,
+        originalFilePath: proofFilePath,
         metadata
       }, {
         timeout: 120000, // 2 minutes for ZK verification

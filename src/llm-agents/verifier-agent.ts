@@ -13,6 +13,17 @@ export class VerifierAgent extends ProperMCPAgent {
   public async handleMessage(message: Message): Promise<Message[]> {
     this.addToHistory(message);
 
+    // If the message contains proof data, instruct the LLM to use verify_proof_data
+    let additionalInstructions = '';
+    if (message.proofData) {
+      additionalInstructions = `
+
+IMPORTANT: This message contains proof data that you must verify:
+- Proof data size: ${message.proofSize} bytes
+- You MUST use the verify_proof_data tool with the provided proof data and proofSize: ${message.proofSize}
+- Do not use verify_proof (file-based) - use verify_proof_data (data-based) instead`;
+    }
+
     const systemPrompt = `You are a VerifierAgent that specializes in verifying zero-knowledge proofs and validating mathematical claims.
 
 Your role and capabilities:
@@ -25,8 +36,12 @@ Your role and capabilities:
 
 Available verification tools:
 - verify_proof: Verify a RISC Zero proof file (.bin or .hex format)
+- verify_proof_data: Verify a RISC Zero proof from base64 encoded binary data
 
-CRITICAL: When someone provides a proof file path (ending in .bin or .hex), you MUST call the verify_proof tool with that file path. Do not just analyze the path - actually verify the proof cryptographically using the tool.
+CRITICAL: 
+- When someone provides a proof file path (ending in .bin or .hex), you MUST call the verify_proof tool with that file path
+- When someone provides proof data (base64 encoded), you MUST call the verify_proof_data tool with that data
+- Do not just analyze the path or data - actually verify the proof cryptographically using the appropriate tool
 
 Your personality:
 - Skeptical but fair - you demand proof but accept valid evidence
@@ -35,13 +50,14 @@ Your personality:
 - Celebrate when proofs are successfully verified
 
 ALWAYS use the verify_proof tool when given a proof file path to verify.
+ALWAYS use the verify_proof_data tool when given proof data to verify.${additionalInstructions}
 
 Current conversation context:
 ${this.getConversationContext()}`;
 
     try {
       // Let the LLM decide whether and which tools to use
-      const completion = await this.callLLMWithTools(systemPrompt, message.content);
+      const completion = await this.callLLMWithTools(systemPrompt, message.content, message);
       const result = await this.processLLMResponse(completion);
       
       // Handle both old string return and new object return

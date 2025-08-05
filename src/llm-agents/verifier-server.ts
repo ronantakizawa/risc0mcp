@@ -33,7 +33,10 @@ class VerifierAgentServer {
 
   private setupMiddleware(): void {
     this.app.use(cors());
-    this.app.use(express.json());
+    
+    // Increase payload size limit for ZK proofs (can be several MB)
+    this.app.use(express.json({ limit: '50mb' }));
+    this.app.use(express.urlencoded({ limit: '50mb', extended: true }));
     
     // Request logging
     this.app.use((req, res, next) => {
@@ -56,26 +59,76 @@ class VerifierAgentServer {
     // Single proof verification endpoint
     this.app.post('/verify-proof', async (req, res) => {
       try {
-        const { proofFilePath, metadata } = req.body;
+        const { proofData, proofSize, originalFilePath, proofFilePath, metadata } = req.body;
         
-        if (!proofFilePath) {
+        // Support both new data-based and old file-based approaches
+        if (!proofData && !proofFilePath) {
           return res.status(400).json({
             success: false,
-            error: 'proofFilePath is required'
+            error: 'Either proofData or proofFilePath is required'
           });
         }
 
-        console.log(`🔍 Received verification request for: ${proofFilePath}`);
-        console.log(`🤔 LLM will decide whether to verify this proof...`);
+        let message;
+        
+        if (proofData) {
+          // New data-based approach
+          console.log(`🔍 Received verification request with proof data (${proofSize} bytes)`);
+          console.log(`🤔 LLM will decide whether to verify this proof data...`);
 
-        // Create a message for the VerifierAgent LLM
-        const message = {
-          from: 'ProverAgent',
-          to: 'VerifierAgent', 
-          type: 'chat' as const,
-          content: `Please verify this zero-knowledge proof file: ${proofFilePath}. This proof was generated to demonstrate a mathematical computation. Use your verification tools to check if this proof is cryptographically valid.`,
-          timestamp: Date.now()
-        };
+          // Validate proof data before processing
+          console.log(`📊 Proof data validation:`);
+          console.log(`   - Proof data type: ${typeof proofData}`);
+          console.log(`   - Is Buffer: ${Buffer.isBuffer(proofData)}`);
+          console.log(`   - Is serialized Buffer: ${typeof proofData === 'object' && proofData && (proofData as any).type === 'Buffer'}`);
+          console.log(`   - Data size: ${proofData?.length || (proofData as any)?.data?.length || 'unknown'} bytes`);
+          console.log(`   - Expected size: ${proofSize} bytes`);
+          
+          // Handle Buffer data conversion for LLM transmission
+          let proofDataForLLM: string;
+          if (Buffer.isBuffer(proofData)) {
+            proofDataForLLM = proofData.toString('base64');
+          } else if (typeof proofData === 'object' && proofData.type === 'Buffer' && Array.isArray(proofData.data)) {
+            // Handle serialized Buffer from JSON
+            proofDataForLLM = Buffer.from(proofData.data).toString('base64');
+          } else {
+            proofDataForLLM = proofData;
+          }
+          
+          // Also store the original binary data for the tool
+          let originalProofData;
+          if (Buffer.isBuffer(proofData)) {
+            originalProofData = proofData;
+          } else if (typeof proofData === 'object' && proofData && (proofData as any).type === 'Buffer' && Array.isArray((proofData as any).data)) {
+            originalProofData = Buffer.from((proofData as any).data);
+          } else {
+            originalProofData = proofData; // Assume it's base64 string
+          }
+
+          // Create a message for the VerifierAgent LLM with proof data
+          message = {
+            from: 'ProverAgent',
+            to: 'VerifierAgent', 
+            type: 'chat' as const,
+            content: `Please verify this zero-knowledge proof data. I have proof data that is ${proofSize} bytes in size of binary data. This proof was generated to demonstrate a mathematical computation. Use your verify_proof_data tool to check if this proof is cryptographically valid.`,
+            timestamp: Date.now(),
+            proofData: originalProofData, // Pass original data to tool
+            proofSize: proofSize
+          };
+        } else {
+          // Old file-based approach for backward compatibility
+          console.log(`🔍 Received verification request for: ${proofFilePath}`);
+          console.log(`🤔 LLM will decide whether to verify this proof file...`);
+
+          // Create a message for the VerifierAgent LLM
+          message = {
+            from: 'ProverAgent',
+            to: 'VerifierAgent', 
+            type: 'chat' as const,
+            content: `Please verify this zero-knowledge proof file: ${proofFilePath}. This proof was generated to demonstrate a mathematical computation. Use your verification tools to check if this proof is cryptographically valid.`,
+            timestamp: Date.now()
+          };
+        }
 
         // Let the VerifierAgent LLM process the request
         const responses = await this.agent.handleMessage(message);

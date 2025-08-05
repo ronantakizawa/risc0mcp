@@ -133,6 +133,24 @@ export const toolDefinitions = [
     },
   },
   {
+    name: 'verify_proof_data',
+    description: 'Verify a RISC Zero proof from base64 encoded binary data and extract the computation result',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        proofData: {
+          type: 'string',
+          description: 'Base64 encoded proof data from a RISC Zero zkVM computation'
+        },
+        proofSize: {
+          type: 'number',
+          description: 'Size of the original proof data in bytes'
+        }
+      },
+      required: ['proofData'],
+    },
+  },
+  {
     name: 'zkvm_run_rust_file',
     description: 'Execute arbitrary Rust code from a file using RISC Zero zkVM and return the result with ZK proof',
     inputSchema: {

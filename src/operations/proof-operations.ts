@@ -107,4 +107,94 @@ export class ProofOperations {
       );
     }
   }
+
+  async verifyProofData(args: any): Promise<ToolResponse> {
+    const { proofData, proofSize } = args;
+
+    if (typeof proofData !== 'string' && !Buffer.isBuffer(proofData) && 
+        !(typeof proofData === 'object' && proofData && (proofData as any).type === 'Buffer')) {
+      throw new McpError(
+        ErrorCode.InvalidParams,
+        'proofData must be a base64 encoded string, Buffer, or serialized Buffer'
+      );
+    }
+
+    try {
+      console.error(`[VerifyData] Starting proof verification from data (${proofSize || 'unknown'} bytes)`);
+      
+      // Handle Buffer, serialized Buffer, and base64 string data
+      let proofBuffer: Buffer;
+      if (Buffer.isBuffer(proofData)) {
+        console.error(`[VerifyData] Received Buffer data: ${proofData.length} bytes`);
+        proofBuffer = proofData;
+      } else if (typeof proofData === 'object' && proofData && (proofData as any).type === 'Buffer' && Array.isArray((proofData as any).data)) {
+        console.error(`[VerifyData] Received serialized Buffer: ${(proofData as any).data.length} bytes`);
+        proofBuffer = Buffer.from((proofData as any).data);
+        console.error(`[VerifyData] Reconstructed Buffer: ${proofBuffer.length} bytes`);
+      } else {
+        console.error(`[VerifyData] Received base64 data: ${proofData.length} characters`);
+        proofBuffer = Buffer.from(proofData, 'base64');
+        console.error(`[VerifyData] Decoded proof data: ${proofBuffer.length} bytes`);
+      }
+      
+      console.error(`[VerifyData] Final buffer size: ${proofBuffer.length} bytes`);
+      console.error(`[VerifyData] Expected size: ${proofSize} bytes`);
+      
+      // Verify the decoded size matches expected size
+      if (proofSize && proofBuffer.length !== proofSize) {
+        console.error(`[VerifyData] WARNING: Size mismatch! Expected ${proofSize}, got ${proofBuffer.length}`);
+      }
+      
+      // Create a temporary file for verification
+      const tempDir = path.join(this.projectPath, 'temp');
+      if (!fs.existsSync(tempDir)) {
+        fs.mkdirSync(tempDir, { recursive: true });
+      }
+      
+      const tempProofFile = path.join(tempDir, `temp_proof_${Date.now()}.bin`);
+      fs.writeFileSync(tempProofFile, proofBuffer);
+      
+      // Verify the file was written correctly
+      const writtenSize = fs.statSync(tempProofFile).size;
+      console.error(`[VerifyData] Created temporary proof file: ${tempProofFile}`);
+      console.error(`[VerifyData] Written file size: ${writtenSize} bytes`);
+      
+      try {
+        // Use the existing verifyProof method with the temporary file
+        const result = await this.verifyProof({ proofFilePath: tempProofFile });
+        
+        // Clean up temporary file
+        fs.unlinkSync(tempProofFile);
+        console.error(`[VerifyData] Cleaned up temporary file`);
+        
+        // Add note about data-based verification
+        const resultData = JSON.parse(result.content[0].text as string);
+        resultData.verificationMethod = 'data-based';
+        resultData.originalProofSize = proofSize;
+        
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify(resultData, null, 2),
+            },
+          ],
+        };
+        
+      } catch (verifyError) {
+        // Clean up temporary file even if verification fails
+        if (fs.existsSync(tempProofFile)) {
+          fs.unlinkSync(tempProofFile);
+        }
+        throw verifyError;
+      }
+
+    } catch (error) {
+      console.error(`[VerifyData] Verification failed:`, error);
+      throw new McpError(
+        ErrorCode.InternalError,
+        `Failed to verify proof data: ${error instanceof Error ? error.message : String(error)}`
+      );
+    }
+  }
 }

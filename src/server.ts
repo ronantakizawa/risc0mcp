@@ -96,6 +96,8 @@ export class RiscZeroCodeServer {
             return await this.mathOps.performZkVmRange(request.params.arguments);
           case 'verify_proof':
             return await this.proofOps.verifyProof(request.params.arguments);
+          case 'verify_proof_data':
+            return await this.proofOps.verifyProofData(request.params.arguments);
           case 'zkvm_run_rust_file':
             return await this.dynamicOps.runRustFile(request.params.arguments);
           case 'zkvm_run_rust_code':
