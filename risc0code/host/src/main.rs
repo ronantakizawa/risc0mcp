@@ -1,9 +1,10 @@
-use methods::{ADDITION_ELF, ADDITION_ID, MULTIPLY_GUEST_ELF, MULTIPLY_GUEST_ID, SQRT_GUEST_ELF, SQRT_GUEST_ID, MODEXP_GUEST_ELF, MODEXP_GUEST_ID, GUEST_RANGE_ELF, GUEST_RANGE_ID};
+use methods::{ADDITION_ELF, ADDITION_ID, MULTIPLY_GUEST_ELF, MULTIPLY_GUEST_ID, SQRT_GUEST_ELF, SQRT_GUEST_ID, MODEXP_GUEST_ELF, MODEXP_GUEST_ID, GUEST_RANGE_ELF, GUEST_RANGE_ID, GUEST_AUTHENTICATED_ADD_ELF, GUEST_AUTHENTICATED_ADD_ID};
 use risc0_zkvm::{default_prover, ExecutorEnv, compute_image_id};
 use std::mem;
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 use std::fs;
 use std::process::Command;
+use hex;
 
 // Fixed-point arithmetic scale factor (5 decimal places for better precision)
 const SCALE: i64 = 100000;
@@ -93,6 +94,60 @@ fn integer_sqrt(n: u32) -> u32 {
     result
 }
 
+fn regenerate_public_key() -> Result<(), Box<dyn std::error::Error>> {
+    use ed25519_compact::Seed;
+    
+    println!("Generating a new valid Ed25519 key pair...");
+    
+    // Generate a seed and let the library handle key derivation properly
+    let seed = Seed::generate();
+    println!("Generated seed (32 bytes): {}", hex::encode(seed.as_ref()));
+    
+    // Create keys using the library's KeyPair mechanism for consistency
+    let keypair = ed25519_compact::KeyPair::from_seed(seed);
+    let secret_key = keypair.sk;
+    let public_key = keypair.pk;
+    
+    // Get the key bytes
+    let secret_key_bytes = secret_key.as_ref();
+    let public_key_bytes = public_key.as_ref();
+    
+    println!("Private key length: {} bytes", secret_key_bytes.len());
+    println!("Private key: {}", hex::encode(secret_key_bytes));
+    println!("Public key (32 bytes): {}", hex::encode(public_key_bytes));
+    
+    // Test signing and verification
+    let test_message = b"test message";
+    let signature = secret_key.sign(test_message, None);
+    let is_valid = public_key.verify(test_message, &signature).is_ok();
+    println!("Key validation test: {}", if is_valid { "PASSED" } else { "FAILED" });
+    
+    if !is_valid {
+        return Err("Generated key pair failed validation test".into());
+    }
+    
+    // Store the keys in the format expected by our zkVM code (64 bytes)
+    let key_to_store = if secret_key_bytes.len() == 32 {
+        // Extend to 64-byte format: seed + public_key
+        let mut extended_key = [0u8; 64];
+        extended_key[..32].copy_from_slice(seed.as_ref()); // Use original seed
+        extended_key[32..].copy_from_slice(public_key_bytes);
+        extended_key
+    } else {
+        // Use as-is if already 64 bytes
+        let mut key_array = [0u8; 64];
+        key_array[..secret_key_bytes.len()].copy_from_slice(secret_key_bytes);
+        key_array
+    };
+    
+    fs::write("keys/default.key", hex::encode(&key_to_store))?;
+    fs::write("keys/public/default.pub", hex::encode(public_key_bytes))?;
+    
+    println!("Key files updated successfully!");
+    println!("Stored private key format: {} bytes", key_to_store.len());
+    Ok(())
+}
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Initialize logging
     tracing_subscriber::fmt()
@@ -101,6 +156,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Read command line arguments
     let args: Vec<String> = std::env::args().collect();
+    
+    // Special case for key regeneration
+    if args.len() >= 2 && args[1] == "regenerate_key" {
+        return regenerate_public_key();
+    }
     
     // New format: program <operation> <...computation_args>
     if args.len() < 2 {
@@ -141,10 +201,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 std::process::exit(1);
             }
         }
+        "authenticated_add" => {
+            if args.len() != 5 {
+                eprintln!("Usage: {} authenticated_add <a> <b> <key_id>", args[0]);
+                std::process::exit(1);
+            }
+        }
         _ => {
             if args.len() != 4 {
                 eprintln!("Usage: {} <operation> <a> <b>", args[0]);
-                eprintln!("Operations: add, multiply, sqrt, modexp, range, dynamic, precompiled");
+                eprintln!("Operations: add, multiply, sqrt, modexp, range, dynamic, precompiled, authenticated_add");
                 std::process::exit(1);
             }
         }
@@ -286,6 +352,19 @@ path = "src/main.rs"
             let expected_result = if secret_number >= min_value && secret_number <= max_value { 1 } else { 0 };
             (GUEST_RANGE_ELF, GUEST_RANGE_ID, "∈", format!("secret ∈ [{}, {}]", min_value, max_value), expected_result as i64, "range")
         },
+        "authenticated_add" => {
+            let a: i64 = args[2].parse().expect("Second argument must be a number");
+            let b: i64 = args[3].parse().expect("Third argument must be a number");
+            let key_id = &args[4];
+            
+            // Generate a unique task ID based on timestamp and inputs
+            let timestamp = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
+            let task_id = format!("auth_{}_{}_{}_{}", timestamp, a, b, key_id);
+            
+            let expected_result = a + b;
+            (GUEST_AUTHENTICATED_ADD_ELF, GUEST_AUTHENTICATED_ADD_ID, "auth+", 
+             format!("authenticated {} + {} (key: {}, task: {})", a, b, key_id, task_id), expected_result, "authenticated")
+        },
         "dynamic" | "precompiled" => {
             let inputs_json = &args[3];
             let elf_data = dynamic_elf_data.as_ref().expect("Dynamic/Precompiled ELF data should be loaded");
@@ -298,7 +377,7 @@ path = "src/main.rs"
             (elf_data.as_slice(), placeholder_image_id, op_name, format!("{} execution with inputs: {}", op_name, inputs_json), 0i64, op_name)
         },
         _ => {
-            eprintln!("Error: Unknown operation '{}'. Use 'add', 'multiply', 'sqrt', 'modexp', 'range', 'dynamic', or 'precompiled'.", operation);
+            eprintln!("Error: Unknown operation '{}'. Use 'add', 'multiply', 'sqrt', 'modexp', 'range', 'dynamic', 'precompiled', or 'authenticated_add'.", operation);
             std::process::exit(1);
         }
     };
@@ -349,6 +428,22 @@ path = "src/main.rs"
                 .write(&max_value)?
                 .build()?
         },
+        "authenticated_add" => {
+            let a: i64 = args[2].parse().expect("Second argument must be a number");
+            let b: i64 = args[3].parse().expect("Third argument must be a number");
+            let key_id = &args[4];
+            
+            // Generate a unique task ID based on timestamp and inputs
+            let timestamp = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
+            let task_id = format!("auth_{}_{}_{}_{}", timestamp, a, b, key_id);
+            
+            ExecutorEnv::builder()
+                .write(&a)?                          // Computation inputs
+                .write(&b)?
+                .write(&timestamp)?                  // Timestamp
+                .write(&task_id.to_string())?        // Task ID
+                .build()?
+        },
         "dynamic" | "precompiled" => {
             let inputs_json = &args[3];
             
@@ -385,6 +480,7 @@ path = "src/main.rs"
     
     // Extract the result from the receipt's journal
     eprintln!("📖 Extracting result from receipt journal...");
+    let mut auth_details: Option<(String, String, String, u64)> = None; // (public_key, signature, task_id, timestamp)
     let (decimal_result, _result_for_json) = match operation.as_str() {
         "sqrt" => {
             // For sqrt, manually decode the bytes for fixed-point values (i64)
@@ -505,6 +601,45 @@ path = "src/main.rs"
             eprintln!("🔢 Range proof result: secret ∈ [{}, {}] = {}", min_value, max_value, in_range);
             eprintln!("🔍 Details: above_min={}, below_max={}", above_min, below_max);
             (if in_range { 1.0 } else { 0.0 }, if in_range { 1 } else { 0 })
+        },
+        "authenticated_add" => {
+            // For authenticated operations, extract the ComputationResult
+            let bytes = &receipt.journal.bytes;
+            
+            eprintln!("🔍 Debug: Journal has {} bytes", bytes.len());
+            eprintln!("🔍 Debug: First 32 bytes: {:?}", &bytes[..32.min(bytes.len())]);
+            
+            // Deserialize the ComputationResult directly from the journal
+            use serde::{Deserialize, Serialize};
+            
+            #[derive(Serialize, Deserialize)]
+            struct ComputationResult {
+                a: i64,
+                b: i64,
+                result: i64,
+                timestamp: u64,
+                task_id: String,
+            }
+            
+            // Try using RISC Zero's journal reader instead of bincode
+            let computation_result: ComputationResult = receipt.journal.decode()
+                .map_err(|e| format!("Failed to decode computation result from journal: {} (journal size: {})", e, bytes.len()))?;
+            
+            eprintln!("🔢 Authenticated computation result: {} + {} = {}", 
+                     computation_result.a, computation_result.b, computation_result.result);
+            eprintln!("🏷️  Task ID: {}", computation_result.task_id);
+            eprintln!("⏰ Timestamp: {}", computation_result.timestamp);
+            
+            // Store task details for JSON output (no auth details since they're handled on server side)
+            eprintln!("🔄 Storing task details for JSON output...");
+            auth_details = Some((
+                "server-side".to_string(),  // Public key handled on server
+                "server-side".to_string(),  // Signature handled on server
+                computation_result.task_id.clone(),
+                computation_result.timestamp
+            ));
+            
+            (computation_result.result as f64, computation_result.result)
         },
         "dynamic" | "precompiled" => {
             // For dynamic/precompiled operations, try to extract the result from the journal
@@ -651,7 +786,20 @@ path = "src/main.rs"
     println!("  \"proof_seal_hex\": \"{}\",", proof_hex.unwrap_or_default());
     println!("  \"proof_size_bytes\": {},", proof_size.unwrap_or(0));
     println!("  \"proof_file_path\": \"{}\",", proof_file_path.unwrap_or_default());
-    println!("  \"dev_mode\": false");
+    println!("  \"dev_mode\": false,");
+    
+    // Add authentication details if available
+    if let Some((public_key, signature, task_id, auth_timestamp)) = auth_details {
+        println!("  \"public_key\": \"{}\",", public_key);
+        println!("  \"signature\": \"{}\",", signature);
+        println!("  \"task_id\": \"{}\",", task_id);
+        println!("  \"auth_timestamp\": {}", auth_timestamp);
+    } else {
+        println!("  \"public_key\": null,");
+        println!("  \"signature\": null,");
+        println!("  \"task_id\": null,");
+        println!("  \"auth_timestamp\": null");
+    }
     println!("}}");
     
     Ok(())
