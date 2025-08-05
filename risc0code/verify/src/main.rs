@@ -1,4 +1,4 @@
-use methods::{ADDITION_ID, MULTIPLY_GUEST_ID, SQRT_GUEST_ID, MODEXP_GUEST_ID, GUEST_RANGE_ID};
+use methods::{ADDITION_ID, MULTIPLY_GUEST_ID, SQRT_GUEST_ID, MODEXP_GUEST_ID, GUEST_RANGE_ID, GUEST_AUTHENTICATED_ADD_ID};
 use risc0_zkvm::Receipt;
 use std::fs;
 use clap::Parser;
@@ -40,7 +40,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .and_then(|n| n.to_str())
             .unwrap_or("");
         
-        if filename.contains("multiply") {
+        if filename.contains("authenticated_add") {
+            "authenticated_add".to_string()
+        } else if filename.contains("multiply") {
             "multiply".to_string()
         } else if filename.contains("sqrt") {
             "sqrt".to_string()
@@ -60,6 +62,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "sqrt" => (SQRT_GUEST_ID, "square root"),
         "modexp" => (MODEXP_GUEST_ID, "modular exponentiation"),
         "range" => (GUEST_RANGE_ID, "range proof"),
+        "authenticated_add" => (GUEST_AUTHENTICATED_ADD_ID, "authenticated addition"),
         "precompiled" => ([0u32; 8], "dynamic Rust code"), // Dynamic image ID will be extracted from proof
         _ => (ADDITION_ID, "addition"),
     };

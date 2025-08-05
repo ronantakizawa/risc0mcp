@@ -461,6 +461,105 @@ This server generates authentic ZK-STARK proofs using RISC Zero's zkVM:
 
 The generated proofs can be independently verified and provide mathematical certainty that the computation was performed correctly without revealing the computation process. The modular exponentiation operation is particularly suitable for cryptographic applications requiring zero-knowledge proofs of discrete logarithm computations.
 
+## LLM Agent Workflow
+
+### Overview
+
+The project includes a complete LLM-to-LLM communication system where AI agents can make mathematical claims, generate cryptographic proofs, and verify each other's work using zero-knowledge proofs.
+
+### Architecture
+
+The LLM agent system consists of:
+
+- **ProverAgent**: Generates ZK proofs for mathematical claims
+- **VerifierAgent**: Skeptically verifies received proofs 
+- **CommunicationHub**: Orchestrates conversations between agents
+- **Base LLM Agent**: Provides OpenAI integration and MCP server communication
+
+### Running LLM Agent Demonstrations
+
+```bash
+# Build the LLM agent system
+npm run build
+
+# Run a full conversation between LLMs
+node dist/llm-agents/main.js conversation
+
+# Run direct proof generation and verification
+node dist/llm-agents/main.js proof-flow
+
+# Run custom conversation
+node dist/llm-agents/main.js custom "Can you prove that 5+3 equals 8?"
+```
+
+### Example LLM Workflow
+
+1. **VerifierAgent** asks ProverAgent about a mathematical computation
+2. **ProverAgent** makes a claim and generates an actual ZK proof using the MCP server
+3. **ProverAgent** sends the proof file and detailed explanation to VerifierAgent
+4. **VerifierAgent** independently verifies the proof cryptographically
+5. **VerifierAgent** provides a detailed verification report
+
+### Creating Custom LLM Agents
+
+You can extend the base agent class to create specialized LLM agents:
+
+```typescript
+import { BaseLLMAgent, Message } from './base-agent.js';
+
+export class CustomAgent extends BaseLLMAgent {
+  constructor(apiKey: string) {
+    super('CustomAgent', apiKey);
+  }
+
+  public async start(): Promise<void> {
+    await this.startMCPServer();
+    console.log(`[${this.name}] Custom agent ready`);
+  }
+
+  public async handleMessage(message: Message): Promise<Message[]> {
+    // Process incoming messages
+    this.addToHistory(message);
+
+    // Use this.callMCPTool() to generate ZK proofs
+    const proofResult = await this.callMCPTool('zkvm_add', { a: 1, b: 1 });
+
+    // Use this.chatWithGPT() for natural language processing
+    const response = await this.chatWithGPT(systemPrompt, message.content);
+
+    return [{
+      from: this.name,
+      to: message.from,
+      type: 'chat',
+      content: response,
+      timestamp: Date.now()
+    }];
+  }
+}
+```
+
+### Environment Configuration
+
+Set your OpenAI API key for LLM agent communication:
+
+```bash
+# In your environment or directly in code
+export OPENAI_API_KEY="your-openai-api-key-here"
+
+# Or update src/llm-agents/main.ts with your key
+const OPENAI_API_KEY = 'your-openai-api-key-here';
+```
+
+### Key Features
+
+- **Real ZK Proof Generation**: Agents generate actual RISC Zero ZK-STARK proofs
+- **Cryptographic Verification**: Independent verification of mathematical claims
+- **Natural Language Communication**: LLMs explain proofs and verification in plain English
+- **Authenticated Computations**: Ed25519 digital signatures for additional security
+- **Extensible Architecture**: Easy to create custom agents for specific use cases
+
+This demonstrates how AI agents can establish trust through cryptographic proofs rather than relying on reputation or authority.
+
 ## License
 
 MIT License
