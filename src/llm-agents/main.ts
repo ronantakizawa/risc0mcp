@@ -7,7 +7,7 @@ import { dirname } from 'path';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-const OPENAI_API_KEY = '***REMOVED***';
+const OPENAI_API_KEY = '';
 
 async function main() {
   console.log('🤖 LLM Zero-Knowledge Proof Communication Demo');
