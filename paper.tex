@@ -26,7 +26,7 @@
 }
 \begin{document}
 
-\title{RISC Zero MCP: Bridging Zero-Knowledge Proof Generation and AI Tool Integration via Model Context Protocol}
+\title{RISC Zero MCP: A tool to run verifiable Agentic Tasks}
 
 \author{Ronan Takizawa}
 
@@ -41,21 +41,9 @@ The integration of zero-knowledge proofs with AI-driven workflows presents signi
 
 The convergence of artificial intelligence and cryptographic systems has opened new frontiers in privacy-preserving computation and verifiable AI operations. As AI agents become increasingly autonomous and handle sensitive data, the need for cryptographic proof systems that can verify computational integrity without revealing private inputs has become paramount. Zero-knowledge proofs (ZKPs) offer a compelling solution by enabling the verification of computations while maintaining data privacy.
 
-Recent developments in zero-knowledge virtual machines, particularly RISC Zero's zkVM, have made it practical to generate proofs for arbitrary computations. However, integrating these powerful cryptographic primitives with AI applications remains challenging due to the complexity of proof generation systems and the lack of standardized interfaces for AI-tool interaction.
-
 The introduction of the Model Context Protocol (MCP) by Anthropic has provided a standardized framework for AI applications to interact with external tools and data sources. MCP enables seamless communication between AI models and external systems through a unified protocol, breaking down integration barriers and facilitating interoperability across diverse platforms.
 
-This paper presents RISC Zero MCP, a comprehensive system that bridges zero-knowledge proof generation and AI tool integration through the Model Context Protocol. Our contributions are threefold:
-
-\begin{enumerate}
-\item We design and implement a complete MCP server architecture that exposes RISC Zero zkVM capabilities as standardized AI tools, enabling AI agents to generate cryptographic proofs for various mathematical operations.
-
-\item We develop a binary proof storage system that optimizes performance and compatibility, reducing storage overhead by approximately 50\% compared to traditional hexadecimal encoding while maintaining full verification capabilities.
-
-\item We provide a comprehensive security analysis and evaluation of the system, demonstrating its effectiveness in real-world scenarios and identifying key considerations for deploying ZKP-enabled AI tools.
-\end{enumerate}
-
-The remainder of this paper is structured as follows: Section~\ref{sec:background} provides background on zero-knowledge proofs and the Model Context Protocol. Section~\ref{sec:architecture} details our system architecture and design decisions. Section~\ref{sec:implementation} describes the implementation details and technical innovations. Section~\ref{sec:evaluation} presents our experimental evaluation and performance analysis. Section~\ref{sec:security} discusses security considerations and threat analysis. Section~\ref{sec:related} reviews related work, and Section~\ref{sec:conclusion} concludes with future directions.
+This paper presents RISC Zero MCP, a comprehensive system that bridges zero-knowledge proof generation and AI tool integration through the Model Context Protocol. We designed a complete Model Context Protocol (MCP) server that exposes RISC Zero zkVM capabilities as standardized AI tools, enabling AI agents to generate cryptographic proofs for various mathematical operations.
 
 \section{Background and Motivation}
 \label{sec:background}
@@ -72,62 +60,54 @@ The Model Context Protocol (MCP) standardizes how AI applications interact with 
 
 \subsection{Motivation}
 
-The integration of zero-knowledge proofs with AI workflows addresses several critical challenges:
-
-The integration of zero-knowledge proofs with AI workflows addresses several critical challenges that are becoming increasingly important in modern computational environments. Privacy-Preserving Computation becomes essential as AI agents often process sensitive data that should not be exposed during computation verification, with ZKPs enabling verification of computational correctness while maintaining input privacy and protecting sensitive information from unauthorized access. Trustless Verification addresses the needs of multi-agent systems or cross-organizational workflows, where participants need to verify that computations were performed correctly without trusting the computing party, enabling secure collaboration between untrusted entities. Regulatory Compliance benefits industries with strict privacy requirements, as verifiable computations can validate processing without exposing regulated data, helping organizations meet compliance requirements while maintaining operational efficiency. Finally, Computational Integrity enables AI agents making critical decisions to provide cryptographic proof that their computations were performed correctly, establishing accountability and trust in autonomous decision-making systems.
-
-However, existing solutions suffer from integration complexity, requiring deep expertise in both cryptographic systems and AI application development. Our RISC Zero MCP system addresses these challenges by providing a standardized, easy-to-use interface for AI applications to leverage zero-knowledge proofs.
+As AI agents assume more responsibility for conducting tasks for organizations, they will start collaborating with other organizations' AI agents to complete tasks. This cross-party agentic workflow raises an issue: How can one AI agent verify claims made by another AI agent? For example, if an AI agent for a logistics company claimed it has calculated the most optimal shipping route, an AI agent for a manufacturing company may seek to verify this calculation. In a single organization's agentic workflow, all tasks were completed internally, and an AI agent's tasks were verifiable through the logs of their function calls and responses. However, in a cross-party agentic workflow, organizations cannot simply send their logs, and even if they do, other organizations may not trust them. I believe this problem can be solved using ZK technology. By leveraging zero-knowledge proofs, AI agents can verify deterministic computations to each other and omit sensitive data used in the computation if necessary. 
 
 \section{System Architecture}
 \label{sec:architecture}
 
 \subsection{Overview}
 
-Our RISC Zero MCP system architecture, illustrated in Figure~\ref{fig:architecture}, consists of four interconnected layers that work together to provide comprehensive zero-knowledge proof capabilities. The MCP Interface Layer provides standardized tool interfaces for AI clients, serving as the primary interaction point where AI applications can access zero-knowledge proof functionality through well-defined protocols, while the Orchestration Layer manages proof generation workflows and resource allocation, coordinating complex multi-step processes and ensuring efficient utilization of computational resources. The RISC Zero Integration Layer interfaces directly with the RISC Zero zkVM system, handling the low-level details of proof generation and verification while abstracting complexity from higher layers, and the Storage Layer manages proof artifacts and verification data, providing persistent storage capabilities with optimized formats and integrity guarantees.
+Our RISC Zero MCP system architecture, illustrated in Figure~\ref{fig:architecture}, consists of three main components that work together to provide comprehensive zero-knowledge proof capabilities. The AI Client represents applications like Claude Desktop and MCP Inspector that consume zero-knowledge proof functionality through standardized MCP protocols, providing tool discovery, request formatting, and result processing capabilities. The MCP Server acts as the orchestration layer, implemented in TypeScript, that manages proof generation workflows, validates schemas, handles processes, and provides robust error handling while serving as the bridge between AI clients and the underlying cryptographic system. The RISC Zero zkVM component encompasses the core cryptographic infrastructure, including Rust-based host binaries, specialized guest programs, and verification tools that execute computations, generate ZK-STARK proofs, and verify proof authenticity.
 
 \begin{figure}[ht]
 \centering
-\begin{tikzpicture}[node distance=1.5cm, auto]
+\begin{tikzpicture}[node distance=6cm, auto]
   % Define styles
-  \tikzstyle{layer} = [rectangle, draw, fill=blue!20, text width=3cm, text centered, rounded corners, minimum height=1cm]
-  \tikzstyle{component} = [rectangle, draw, fill=green!20, text width=2.5cm, text centered, rounded corners, minimum height=0.8cm]
+  \tikzstyle{system} = [rectangle, draw, text width=4cm, text centered, rounded corners, minimum height=2.5cm, thick]
   \tikzstyle{arrow} = [thick,->,>=stealth]
+  \tikzstyle{label} = [font=\small, text centered]
   
-  % Layers
-  \node [layer] (mcp) {MCP Interface Layer};
-  \node [layer, below of=mcp] (orchestration) {Orchestration Layer};
-  \node [layer, below of=orchestration] (risc0) {RISC Zero Integration Layer};
-  \node [layer, below of=risc0] (storage) {Storage Layer};
+  % Main system components
+  \node [system] (client) {
+    \textbf{AI Client}\\[0.5cm]
+    Claude Desktop\\
+    MCP Inspector\\
+    Custom AI Apps
+  };
   
-  % Components for MCP Interface Layer
-  \node [component, right of=mcp, xshift=2cm] (tools) {AI Tools\\Interface};
-  \node [component, below of=tools, yshift=0.5cm] (schema) {Schema\\Validation};
+  \node [system, right of=client] (mcpserver) {
+    \textbf{MCP Server}\\[0.5cm]
+    TypeScript Server\\
+    Schema Validation\\
+    Error Handling
+  };
   
-  % Components for Orchestration Layer
-  \node [component, right of=orchestration, xshift=2cm] (workflow) {Workflow\\Management};
-  \node [component, below of=workflow, yshift=0.5cm] (resource) {Resource\\Allocation};
+  \node [system, right of=mcpserver] (risc0) {
+    \textbf{RISC Zero zkVM}\\[0.5cm]
+    Host Binary (Rust)\\
+    Guest Programs\\
+    Proof Generation
+  };
   
-  % Components for RISC Zero Layer
-  \node [component, right of=risc0, xshift=2cm] (zkvm) {zkVM\\Execution};
-  \node [component, below of=zkvm, yshift=0.5cm] (proof) {Proof\\Generation};
+  % Arrows with labels for data flow
+  \draw [arrow] (client.east) -- (mcpserver.west) node[midway, above, label] {MCP Tool Calls};
+  \draw [arrow] (mcpserver.west) -- (client.east) node[midway, below, label] {Results + Proofs};
   
-  % Components for Storage Layer
-  \node [component, right of=storage, xshift=2cm] (binary) {Binary\\Storage};
-  \node [component, below of=binary, yshift=0.5cm] (verify) {Verification\\Data};
-  
-  % Arrows between layers
-  \draw [arrow] (mcp) -- (orchestration);
-  \draw [arrow] (orchestration) -- (risc0);
-  \draw [arrow] (risc0) -- (storage);
-  
-  % Arrows to components
-  \draw [arrow] (mcp) -- (tools);
-  \draw [arrow] (orchestration) -- (workflow);
-  \draw [arrow] (risc0) -- (zkvm);
-  \draw [arrow] (storage) -- (binary);
+  \draw [arrow] (mcpserver.east) -- (risc0.west) node[midway, above, label] {Computation Requests};
+  \draw [arrow] (risc0.west) -- (mcpserver.east) node[midway, below, label] {ZK-STARK Proofs};
   
 \end{tikzpicture}
-\caption{RISC Zero MCP System Architecture}
+\caption{RISC Zero MCP System Architecture with Data Flow}
 \label{fig:architecture}
 \end{figure}
 
@@ -212,12 +192,6 @@ Range Proof & 3,876 & 198 \\
 
 \textbf{Verification Performance}: Proof verification demonstrates consistently fast performance across all operation types, typically completing in 15-25ms regardless of the original computation complexity, indicating that verification overhead remains minimal even for complex cryptographic operations.
 
-\subsection{Scalability Assessment}
-
-We evaluated system scalability through concurrent proof generation testing:
-
-We evaluated system scalability through concurrent proof generation testing, demonstrating robust performance characteristics under load. The system successfully handles multiple concurrent proof generation requests with linear resource scaling, maintaining consistent performance as workload increases, while peak memory usage scales predictably with the number of concurrent operations, with each proof generation requiring approximately 150MB of working memory. Proof generation is CPU-intensive but benefits from multi-core architectures through parallel execution, enabling efficient utilization of available computational resources and maintaining throughput under concurrent load.
-
 \subsection{Integration Testing}
 
 We validated MCP integration through comprehensive testing:
@@ -228,8 +202,6 @@ We validated MCP integration through comprehensive testing across multiple dimen
 \label{sec:security}
 
 \subsection{Threat Model}
-
-Our threat model considers several attack vectors relevant to ZKP-enabled AI systems:
 
 Our threat model considers several attack vectors relevant to ZKP-enabled AI systems that could potentially compromise system security or data privacy. Proof Forgery represents attempts to generate false proofs that appear valid but represent incorrect computations, potentially undermining the fundamental trust assumptions of the system, while Input Manipulation involves malicious modification of inputs to cause unexpected behavior or information disclosure, threatening both system integrity and data confidentiality. Side-Channel Attacks attempt to extract sensitive information through timing analysis or resource usage patterns, exploiting implementation details rather than cryptographic weaknesses, and Verification Bypass attacks attempt to circumvent proof verification mechanisms, potentially allowing invalid computations to be accepted as legitimate.
 
@@ -264,17 +236,6 @@ Verifiable computation has been explored in various contexts. Pinocchio provided
 \section{Conclusion}
 \label{sec:conclusion}
 
-This paper presents RISC Zero MCP, a comprehensive system that bridges zero-knowledge proof generation and AI tool integration through the Model Context Protocol. Our implementation demonstrates that complex cryptographic systems can be made accessible to AI applications through standardized interfaces, enabling new paradigms for privacy-preserving and verifiable computation.
-
-The system's key contributions include: (1) a complete MCP server architecture exposing RISC Zero zkVM capabilities as AI tools, (2) an optimized binary proof storage system reducing overhead by 50\%, and (3) comprehensive security analysis demonstrating practical deployment viability.
-
-Our evaluation shows that the system provides good performance characteristics while maintaining cryptographic security guarantees. The standardized MCP interface makes zero-knowledge proofs accessible to AI developers without requiring deep cryptographic expertise.
-
-As AI systems become more autonomous and handle increasingly sensitive data, the integration of cryptographic proof systems becomes essential. Our work provides a foundation for this integration, demonstrating practical approaches and identifying key considerations for future development.
-
-The growing ecosystem of MCP-enabled AI applications presents significant opportunities for expanding verifiable computation capabilities. We envision a future where cryptographic proofs are seamlessly integrated into AI workflows, enabling new levels of trust, privacy, and verification in autonomous systems.
-
-
-
+This paper presents RISC Zero MCP, a comprehensive system that bridges zero-knowledge proof generation and AI tool integration through the Model Context Protocol. Our implementation demonstrates that complex cryptographic systems can be made accessible to AI applications through standardized interfaces, enabling new paradigms for privacy-preserving and verifiable computation. Our evaluation shows that the system provides great performance characteristics while maintaining cryptographic security guarantees. As AI systems become more autonomous and handle increasingly sensitive data, the integration of cryptographic proof systems becomes essential. Our work provides a foundation for this integration, demonstrating practical approaches and identifying key considerations for future development.
 
 \end{document}

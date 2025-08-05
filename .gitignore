@@ -122,3 +122,5 @@ coverage/
 # Claude
 .claude/
 notes.txt
+
+keys/
