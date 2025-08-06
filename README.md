@@ -4,34 +4,14 @@
 
 A comprehensive Model Context Protocol (MCP) server that provides zero-knowledge proof computation using RISC Zero zkVM. Features include pre-built mathematical operations, private machine learning algorithms, dynamic Rust code execution, and LLM-driven zero-knowledge proof generation with cryptographic verification.
 
-https://github.com/user-attachments/assets/c32eec35-3bb5-42a5-b855-73100dfd3ff6
+https://github.com/user-attachments/assets/9a970034-442c-4ff9-972d-ad7c6d1a5079
+
 
 ## Features
-
-### 🧠 **Private Machine Learning**
 - **K-Means Clustering**: Classify data points without revealing training data
 - **Linear Regression**: Make predictions while keeping datasets private  
-- **Neural Networks**: AI inference with hidden model weights
-- **Zero-Knowledge ML**: All computations generate cryptographic proofs
-
-### 🔐 **Zero-Knowledge Proofs**
-- **Real ZK-STARK Proofs**: Production-grade cryptographic verification
-- **Mathematical Operations**: Addition, multiplication, square root, modular exponentiation
-- **Range Proofs**: Prove values are within bounds without revealing them
-- **Authenticated Computations**: Ed25519 digital signatures for additional security
-
-### 🚀 **Advanced Capabilities**
-- **LLM-Driven Execution**: AI agents that generate and verify proofs autonomously
-- **Dynamic Rust Execution**: Compile and execute arbitrary Rust code in the zkVM
-- **HTTP File Upload System**: Distributed proof verification across network endpoints
-- **MCP Integration**: Compatible with Claude and other MCP clients
-- **Production & Development Modes**: Full ZK-STARK proofs or fast development execution
-
-### ⚡ **Performance & Reliability**
-- **Optimized ML Operations**: 20-45 seconds for complete proof generation
-- **Pre-compiled Guest Programs**: No compilation overhead for ML operations
-- **High-Precision Arithmetic**: Fixed-point decimal support for mathematical operations
-- **Proof Persistence**: Timestamped binary proof files for verification and archival
+- **Neural Networks**: Basic neural network runs while hiding model weights
+- - **Mathematical Operations**: Addition, multiplication, square root, modular exponentiation
 
 ## Architecture
 
@@ -92,27 +72,44 @@ cargo build --release
 cd ..
 ```
 
-### Step 5: Test the Installation
-Verify everything works with the ML operations:
+### Step 4: Environment Configuration
+
+Set your OpenAI API key for LLM agent communication:
+
 ```bash
-# Test the machine learning functionality
-npm run test:k-means          # K-means clustering (~30-45 seconds)
-npm run test:linear-regression # Linear regression (~20-30 seconds)
-npm run test:neural-network   # Neural network inference (~20-30 seconds)
+# In your environment or directly in code
+export OPENAI_API_KEY="your-openai-api-key-here"
 
-# Test mathematical operations  
-npm run test:add              # Addition with ZK proof
-npm run test:multiply         # Multiplication with ZK proof
+# Or update src/llm-agents/main.ts with your key
+const OPENAI_API_KEY = 'your-openai-api-key-here';
 ```
 
-**Expected Output**: Each test should show successful proof generation and verification with messages like:
+## LLM Agent Workflow
+
+### Running LLM Agent Demonstrations
+
+#### Build the LLM agent system
+```bash
+npm run build
 ```
-✅ Test completed successfully
-🔧 Tool used: zkvm_k_means
-✅ Correct tool selected by LLM  
-📄 Proof generated: /path/to/proof_k_means_timestamp.bin
-✅ Proof verification successful
+#### Run MCP server on Terminal 1
+```bash
+npm run mcp-server
 ```
+
+#### Run a Verifying AI Agent on Terminal 2
+```bash
+npm run verifier-server 
+```
+#### Run a Proving AI Agent on Terminal 3
+```bash
+# Example functions
+npm run comprehensive-test # Run all proofs
+npm run test:k-means
+npm run test:linear-regression
+npm run test:logistic-regression
+```
+
 
 ## Setup with Claude Desktop
 
@@ -183,8 +180,8 @@ The MCP server runs automatically when Claude Desktop starts. You can interact w
 
 ### Example Prompts
 
-**Private Machine Learning:**
-- "Perform K-means clustering on these data points: [[1,2], [2,1], [8,9], [9,8]] with k=2"
+**Private Machine Learning Computations:**
+- "Create a Perform K-means clustering on these data points: [[1,2], [2,1], [8,9], [9,8]] with k=2"
 - "Do linear regression on x=[1,2,3,4,5] and y=[2,4,6,8,10], predict y for x=6"  
 - "Run a neural network with inputs [0.5, 0.3, 0.8] for private AI computation"
 
@@ -202,18 +199,6 @@ The MCP server runs automatically when Claude Desktop starts. You can interact w
 - "Execute this Rust code in the zkVM: [paste your Rust code]"
 - "Compile and run a Fibonacci function for n=10"
 
-### Environment Modes
-
-**Development Mode** (`RISC0_DEV_MODE=1`):
-- ⚡ Fast execution (~1-2 seconds)
-- ❌ No real cryptographic proofs
-- ✅ Great for testing and development
-
-**Production Mode** (`RISC0_DEV_MODE=0`):
-- 🐌 Slower execution (~3-5 seconds)
-- ✅ Real ZK-STARK proofs
-- 🔐 Cryptographically verifiable results
-
 
 ### Available Tools
 
@@ -223,30 +208,6 @@ The MCP server runs automatically when Claude Desktop starts. You can interact w
 **Parameters:**
 - `filepath` (string): Path to the Rust source file to compile and execute
 - `inputs` (object): JSON inputs to pass to the guest program
-
-**Response:**
-```json
-{
-  "computation": {
-    "operation": "dynamic_rust",
-    "codeHash": "5209888b6be4687c",
-    "inputs": [2],
-    "result": 1,
-    "executionTimeMs": 3021
-  },
-  "zkProof": {
-    "mode": "Production (real ZK proof)",
-    "imageId": "4d48e6780c51ffda178cd619c09e6349e244ed9ec2bd7a95db4be498dec8b6d6",
-    "verificationStatus": "verified",
-    "proofFilePath": "/path/to/proof_precompiled_1754056003.bin"
-  },
-  "dynamicExecution": {
-    "tempGuestName": "guest-dynamic-5209888b6be4687c",
-    "codeLength": 1275,
-    "successful": true
-  }
-}
-```
 
 #### `zkvm_run_rust_code`
 **NEW**: Compiles and executes Rust code provided as text in RISC Zero zkVM with zero-knowledge proof generation.
@@ -278,26 +239,6 @@ Performs addition of two decimal numbers using RISC Zero zkVM and returns the re
 **Parameters:**
 - `a` (number): First number to add (supports decimal values)
 - `b` (number): Second number to add (supports decimal values)
-- `forceRebuild` (boolean, optional): Whether to rebuild the project from scratch
-
-**Response:**
-```json
-{
-  "computation": {
-    "operation": "add",
-    "inputs": { "a": 3.5, "b": 2.1 },
-    "result": 5.6,
-    "expected": 5.6,
-    "correct": true
-  },
-  "zkProof": {
-    "mode": "Production (real ZK proof)",
-    "imageId": "37137a8d60d066586835232557cd31839c77e6ce625534a8d717b93f039968d2",
-    "verificationStatus": "verified",
-    "proofFilePath": "/path/to/proof_add_a1b2c3d4e5f67890_1753873520.bin"
-  }
-}
-```
 
 #### `zkvm_multiply`
 Performs multiplication of two decimal numbers using RISC Zero zkVM and returns the result with ZK proof receipt.
@@ -305,14 +246,12 @@ Performs multiplication of two decimal numbers using RISC Zero zkVM and returns 
 **Parameters:**
 - `a` (number): First number to multiply (supports decimal values)
 - `b` (number): Second number to multiply (supports decimal values)
-- `forceRebuild` (boolean, optional): Whether to rebuild the project from scratch
 
 #### `zkvm_sqrt`
 Computes the square root of a decimal number using RISC Zero zkVM and returns the result with ZK proof receipt.
 
 **Parameters:**
 - `n` (number): Number to compute square root for (must be non-negative, supports decimal values)
-- `forceRebuild` (boolean, optional): Whether to rebuild the project from scratch
 
 #### `zkvm_modexp`
 Performs modular exponentiation (a^b mod n) using RISC Zero zkVM and returns the result with ZK proof receipt. Ideal for cryptographic applications.
@@ -321,26 +260,6 @@ Performs modular exponentiation (a^b mod n) using RISC Zero zkVM and returns the
 - `base` (number): Base number (a) - must be a non-negative integer
 - `exponent` (number): Exponent (b) - must be a non-negative integer
 - `modulus` (number): Modulus (n) - must be a positive integer
-- `forceRebuild` (boolean, optional): Whether to rebuild the project from scratch
-
-**Response:**
-```json
-{
-  "computation": {
-    "operation": "modexp",
-    "inputs": { "base": 2, "exponent": 10, "modulus": 1000 },
-    "result": 24,
-    "expected": 24,
-    "correct": true
-  },
-  "zkProof": {
-    "mode": "Production (real ZK proof)",
-    "imageId": "55dff028e6a06ea7c1d8c159cd63ce13966dc196543e1db411ee303640e21c4d",
-    "verificationStatus": "verified",
-    "proofFilePath": "/path/to/proof_modexp_a1b2c3d4e5f67890_1753873533.bin"
-  }
-}
-```
 
 #### `zkvm_range`
 Proves that a secret number is within a specified range using RISC Zero zkVM without revealing the secret number. This is a zero-knowledge range proof ideal for privacy-preserving applications.
@@ -349,27 +268,6 @@ Proves that a secret number is within a specified range using RISC Zero zkVM wit
 - `secretNumber` (number): Secret number to prove is in range (will remain private) - must be a non-negative integer
 - `minValue` (number): Minimum value of the range (inclusive) - must be a non-negative integer
 - `maxValue` (number): Maximum value of the range (inclusive) - must be a non-negative integer
-- `forceRebuild` (boolean, optional): Whether to rebuild the project from scratch
-
-**Response:**
-```json
-{
-  "computation": {
-    "operation": "range",
-    "inputs": { "minValue": 18, "maxValue": 65 },
-    "result": true,
-    "expected": true,
-    "correct": true
-  },
-  "zkProof": {
-    "mode": "Production (real ZK proof)",
-    "imageId": "273370e37f4cb8e7268495b9b54c0c2c12a1eab3683c88137bf30a45e2ce6719",
-    "verificationStatus": "verified",
-    "proofFilePath": "/path/to/proof_range_a1b2c3d4e5f67890_1753877372.bin"
-  },
-  "note": "The secret number remains private - only the range membership result is revealed"
-}
-```
 
 #### `zkvm_k_means`
 Performs K-means clustering algorithm with zero-knowledge proof for private machine learning. Clusters data points without revealing the training data.
@@ -380,29 +278,6 @@ Performs K-means clustering algorithm with zero-knowledge proof for private mach
 - `maxIterations` (integer, optional): Maximum iterations for convergence (default: 10)
 - `queryPoint` (array): Query point to classify as [x, y] coordinates
 
-**Response:**
-```json
-{
-  "computation": {
-    "operation": "k_means",
-    "inputs": {
-      "dataPoints": [[1.0, 2.0], [2.0, 1.0], [8.0, 9.0], [9.0, 8.0]],
-      "k": 2,
-      "maxIterations": 10,
-      "queryPoint": [1.5, 1.8]
-    },
-    "result": 0,
-    "executionTimeMs": 42000
-  },
-  "zkProof": {
-    "mode": "Production (real ZK proof)",
-    "imageId": "a1b2c3d4e5f67890123456789abcdef",
-    "verificationStatus": "verified",
-    "proofFilePath": "/path/to/proof_k_means_1754000000.bin"
-  },
-  "note": "Training data remains private - only cluster assignment is revealed"
-}
-```
 
 #### `zkvm_linear_regression`
 Performs linear regression analysis with zero-knowledge proof for private statistical modeling. Computes predictions while keeping datasets private.
@@ -412,29 +287,6 @@ Performs linear regression analysis with zero-knowledge proof for private statis
 - `yValues` (array): Array of y (dependent) values  
 - `predictX` (number): X value to predict Y for
 
-**Response:**
-```json
-{
-  "computation": {
-    "operation": "linear_regression",
-    "inputs": {
-      "xValues": [1, 2, 3, 4, 5],
-      "yValues": [2, 4, 6, 8, 10],
-      "predictX": 6
-    },
-    "result": 12.0,
-    "executionTimeMs": 25000
-  },
-  "zkProof": {
-    "mode": "Production (real ZK proof)",
-    "imageId": "b2c3d4e5f6789012345678901abcdef2",
-    "verificationStatus": "verified",
-    "proofFilePath": "/path/to/proof_linear_regression_1754000001.bin"
-  },
-  "note": "Dataset remains private - only the prediction result is revealed"
-}
-```
-
 #### `zkvm_neural_network`
 Executes neural network computation with zero-knowledge proof for private AI inference. Performs inference without revealing model weights.
 
@@ -443,251 +295,12 @@ Executes neural network computation with zero-knowledge proof for private AI inf
 - `learningRate` (number, optional): Learning rate for training (default: 0.1)
 - `epochs` (integer, optional): Number of training epochs (default: 100)
 
-**Response:**
-```json
-{
-  "computation": {
-    "operation": "neural_network",
-    "inputs": {
-      "inputs": [0.5, 0.3, 0.8],
-      "learningRate": 0.1,
-      "epochs": 100
-    },
-    "result": 0.738,
-    "executionTimeMs": 28000
-  },
-  "zkProof": {
-    "mode": "Production (real ZK proof)",
-    "imageId": "c3d4e5f67890123456789012abcdef34",
-    "verificationStatus": "verified",
-    "proofFilePath": "/path/to/proof_neural_network_1754000002.bin"
-  },
-  "note": "Model weights remain private - only inference result is revealed"
-}
-```
 
 #### `verify_proof`
 Verifies a RISC Zero proof from a .bin or .hex file and extracts the computation result. Automatically detects the operation type from the filename.
 
 **Parameters:**
 - `proofFilePath` (string): Path to the .bin or .hex proof file to verify
-
-**Response:**
-```json
-{
-  "verification": {
-    "status": "verified",
-    "extractedResult": 24,
-    "verificationTimeMs": 13,
-    "proofDetails": {
-      "imageId": "55dff028e6a06ea7c1d8c159cd63ce13966dc196543e1db411ee303640e21c4d",
-      "journalBytes": "[2, 0, 0, 0, 0, 0, 0, 0, 10, 0, 0, 0, 0, 0, 0, 0, 232, 3, 0, 0, 0, 0, 0, 0, 24, 0, 0, 0, 0, 0, 0, 0]",
-      "proofSizeBytes": 419124,
-      "verificationTime": "13.15ms"
-    },
-    "rawOutput": "🔍 RISC Zero Proof Verifier...",
-    "rawStderr": ""
-  },
-  "note": "Proof verification successful - cryptographically authentic!"
-}
-```
-
-## Proof Files
-
-Generated proofs are saved as timestamped binary files in the project directory:
-- Format: `proof_{operation}_{session_id}_{timestamp}.bin`
-- Examples: 
-  - `proof_add_a1b2c3d4e5f67890_1753873520.bin`
-  - `proof_multiply_a1b2c3d4e5f67890_1753873521.bin`
-  - `proof_sqrt_a1b2c3d4e5f67890_1753873522.bin`
-  - `proof_modexp_a1b2c3d4e5f67890_1753873523.bin`
-  - `proof_range_a1b2c3d4e5f67890_1753877372.bin`
-- Contains: Complete serialized receipt data with session binding
-- Size: ~50% smaller than hex format
-- Can be used for independent verification with authenticity checking
-
-### Verifying Proofs
-
-#### Using the Verification Tool Directly
-```bash
-# Build the verification tool (if not already built)
-cd risc0code
-cargo build --release --bin verify
-
-# Verify proofs (operation auto-detected from filename, supports .bin and .hex)
-./target/release/verify --file proof_add_a1b2c3d4e5f67890_1753873520.bin --verbose
-./target/release/verify --file proof_multiply_a1b2c3d4e5f67890_1753873521.bin --verbose
-./target/release/verify --file proof_sqrt_a1b2c3d4e5f67890_1753873522.bin --verbose
-./target/release/verify --file proof_modexp_a1b2c3d4e5f67890_1753873523.bin --verbose
-./target/release/verify --file proof_range_a1b2c3d4e5f67890_1753877372.bin --verbose
-
-# Verify with expected result
-./target/release/verify --file proof_modexp_a1b2c3d4e5f67890_1753873523.bin --expected 24
-```
-
-#### Verification Output
-A successful verification will show:
-- 🔍 RISC Zero Proof Verifier initialization
-- 📁 Reading and decoding proof file
-- 🔧 Detected operation type (auto-detected)
-- ➡️ Extracted computation result
-- 🔐 Cryptographic verification status
-- 🎉 PROOF VERIFICATION SUCCESSFUL!
-- 📊 Detailed proof information (with --verbose)
-
-Example output:
-```
-🔍 RISC Zero Proof Verifier
-══════════════════════════
-📁 Reading proof file: proof_range_a1b2c3d4e5f67890_1753877372.bin
-🔧 Detected operation: range proof
-🔐 Extracting session context...
-Session ID: a1b2c3d4e5f67890123456789012345ab
-Request nonce: 15
-🔢 Extracting computation result...
-➡️  Computation result: secret ∈ [18, 65] = true
-🔍 Range check details: above_min=true, below_max=true
-🔐 Verifying cryptographic proof...
-🎉 PROOF VERIFICATION SUCCESSFUL! (13.15ms)
-✨ This proof is cryptographically valid and session-authenticated
-```
-
-## Development
-
-### Building
-```bash
-npm run build
-```
-
-### Force Rebuild RISC Zero
-```bash
-cd risc0code
-cargo clean
-cargo build --release
-```
-
-## Performance
-
-- **Initial build**: ~30-60 seconds (one-time setup)
-- **Subsequent executions**: ~3-5 seconds for proof generation
-- **Proof verification**: ~10-20ms
-- **Proof file size**: ~400KB per proof
-
-## Zero-Knowledge Proof Details
-
-This server generates authentic ZK-STARK proofs using RISC Zero's zkVM:
-
-- **Proving System**: ZK-STARK (Zero-Knowledge Scalable Transparent ARgument of Knowledge)
-- **Supported Operations**: 
-  - **Addition**: Decimal numbers with 4 decimal places precision
-  - **Multiplication**: Decimal numbers with 4 decimal places precision
-  - **Square Root**: Decimal numbers using binary search algorithm
-  - **Modular Exponentiation**: Integer operations using binary exponentiation for cryptographic applications
-  - **Range Proofs**: Privacy-preserving proofs that a secret number is within a specified range without revealing the number
-- **Verification**: Cryptographically verifiable proofs
-- **Security**: Production-grade zero-knowledge proofs
-- **Fixed-Point Arithmetic**: Uses scale factor of 10,000 for decimal precision
-
-The generated proofs can be independently verified and provide mathematical certainty that the computation was performed correctly without revealing the computation process. The modular exponentiation operation is particularly suitable for cryptographic applications requiring zero-knowledge proofs of discrete logarithm computations.
-
-## LLM Agent Workflow
-
-### Overview
-
-The project includes a complete LLM-to-LLM communication system where AI agents can make mathematical claims, generate cryptographic proofs, and verify each other's work using zero-knowledge proofs.
-
-### Architecture
-
-The LLM agent system consists of:
-
-- **ProverAgent**: Generates ZK proofs for mathematical claims
-- **VerifierAgent**: Skeptically verifies received proofs 
-- **CommunicationHub**: Orchestrates conversations between agents
-- **Base LLM Agent**: Provides OpenAI integration and MCP server communication
-
-### Running LLM Agent Demonstrations
-
-```bash
-# Build the LLM agent system
-npm run build
-
-# Run a full conversation between LLMs
-node dist/llm-agents/main.js conversation
-
-# Run direct proof generation and verification
-node dist/llm-agents/main.js proof-flow
-
-# Run custom conversation
-node dist/llm-agents/main.js custom "Can you prove that 5+3 equals 8?"
-```
-
-### Example LLM Workflow
-
-1. **VerifierAgent** asks ProverAgent about a mathematical computation
-2. **ProverAgent** makes a claim and generates an actual ZK proof using the MCP server
-3. **ProverAgent** sends the proof file and detailed explanation to VerifierAgent
-4. **VerifierAgent** independently verifies the proof cryptographically
-5. **VerifierAgent** provides a detailed verification report
-
-### Creating Custom LLM Agents
-
-You can extend the base agent class to create specialized LLM agents:
-
-```typescript
-import { BaseLLMAgent, Message } from './base-agent.js';
-
-export class CustomAgent extends BaseLLMAgent {
-  constructor(apiKey: string) {
-    super('CustomAgent', apiKey);
-  }
-
-  public async start(): Promise<void> {
-    await this.startMCPServer();
-    console.log(`[${this.name}] Custom agent ready`);
-  }
-
-  public async handleMessage(message: Message): Promise<Message[]> {
-    // Process incoming messages
-    this.addToHistory(message);
-
-    // Use this.callMCPTool() to generate ZK proofs
-    const proofResult = await this.callMCPTool('zkvm_add', { a: 1, b: 1 });
-
-    // Use this.chatWithGPT() for natural language processing
-    const response = await this.chatWithGPT(systemPrompt, message.content);
-
-    return [{
-      from: this.name,
-      to: message.from,
-      type: 'chat',
-      content: response,
-      timestamp: Date.now()
-    }];
-  }
-}
-```
-
-### Environment Configuration
-
-Set your OpenAI API key for LLM agent communication:
-
-```bash
-# In your environment or directly in code
-export OPENAI_API_KEY="your-openai-api-key-here"
-
-# Or update src/llm-agents/main.ts with your key
-const OPENAI_API_KEY = 'your-openai-api-key-here';
-```
-
-### Key Features
-
-- **Real ZK Proof Generation**: Agents generate actual RISC Zero ZK-STARK proofs
-- **Cryptographic Verification**: Independent verification of mathematical claims
-- **Natural Language Communication**: LLMs explain proofs and verification in plain English
-- **Authenticated Computations**: Ed25519 digital signatures for additional security
-- **Extensible Architecture**: Easy to create custom agents for specific use cases
-
-This demonstrates how AI agents can establish trust through cryptographic proofs rather than relying on reputation or authority.
 
 ## License
 
