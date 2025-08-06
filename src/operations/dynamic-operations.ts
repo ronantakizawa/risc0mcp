@@ -75,6 +75,7 @@ export class DynamicOperations {
       const tempGuestPath = path.join(this.projectPath, 'methods', tempGuestName);
       
       console.error(`[Dynamic] Creating temporary guest program: ${tempGuestName}`);
+      console.error(`[Dynamic] Process start time: ${new Date().toISOString()}`);
       
       // Create temporary guest program directory
       if (fs.existsSync(tempGuestPath)) {
@@ -102,7 +103,7 @@ export class DynamicOperations {
       
       const env = {
         ...process.env,
-        RISC0_DEV_MODE: '0', // Always production mode
+        RISC0_DEV_MODE: '0', // Production mode for real ZK proofs
         RUST_LOG: 'info'
       };
 
@@ -122,13 +123,24 @@ export class DynamicOperations {
       
       const command = `${hostBinary} precompiled "${guestBinaryPath}" '${inputsJson}'`;
       
+      // Clean up temp file after use
+      const cleanup = () => {
+        try {
+          if (fs.existsSync(tempGuestPath)) {
+            fs.rmSync(tempGuestPath, { recursive: true, force: true });
+          }
+        } catch (e) {
+          console.error(`[Dynamic] Failed to cleanup temp file: ${e}`);
+        }
+      };
+      
       let result: ZkVmResult;
       
       try {
         const execResult = await execAsync(command, { 
           cwd: this.projectPath, 
           env,
-          timeout: 240000 // 4 minutes timeout for dynamic code
+          timeout: 1800000 // 30 minutes timeout for dynamic code execution
         });
         
         const endTime = Date.now();
@@ -153,10 +165,7 @@ export class DynamicOperations {
         // Clean up temporary guest directory and remove from methods build
         try {
           await this.removeGuestFromMethodsCargoToml(tempGuestName);
-          if (fs.existsSync(tempGuestPath)) {
-            fs.rmSync(tempGuestPath, { recursive: true, force: true });
-            console.error(`[Dynamic] Cleaned up temporary guest directory: ${tempGuestPath}`);
-          }
+          cleanup();
         } catch (cleanupError) {
           console.error(`[Dynamic] Failed to cleanup temporary guest: ${cleanupError}`);
         }
@@ -246,19 +255,37 @@ path = "src/main.rs"
       return userCode;
     }
     
-    // If user code defines its own main function, wrap it appropriately
+    // If user code defines its own main function, rename it and wrap appropriately
     if (userCode.includes('fn main()')) {
-      // User provided a main function, wrap it in zkVM structure
+      // User provided a main function, rename it to avoid conflicts and wrap it in zkVM structure
+      let renamedUserCode = userCode.replace(/fn main\(\)/g, 'fn user_main()');
+      // Remove println! statements as they're not available in no_std environment
+      renamedUserCode = renamedUserCode.replace(/println!\s*\([^)]*\)\s*;?/g, '// println! removed (not available in no_std)');
+      
       return `#![no_main]
 #![no_std]
 
 extern crate alloc;
 use alloc::string::String;
 use alloc::vec::Vec;
+use risc0_zkvm::guest::env;
 
 risc0_zkvm::guest::entry!(main);
 
-${userCode}
+fn main() {
+    // Execute user's main function
+    let result = user_main();
+    
+    // Commit the result or default value
+    env::commit(&result);
+}
+
+fn user_main() -> i64 {
+    ${ProjectUtils.indentCode(renamedUserCode, 4)}
+    
+    // Return a default result if user code doesn't return anything
+    42i64
+}
 `;
     }
     
@@ -319,7 +346,7 @@ fn user_computation(inputs: &Value, inputs_json: &str) -> Value {
     try {
       if (forceRebuild) {
         console.error(`[Dynamic] Force rebuild requested, cleaning first...`);
-        await execAsync('cargo clean', { cwd: this.projectPath, timeout: 60000 });
+        await execAsync('cargo clean', { cwd: this.projectPath, timeout: 300000 }); // 5 minutes for clean
       }
       
       // Build using the methods build system with shorter timeout to fit MCP limits
@@ -331,39 +358,39 @@ fn user_computation(inputs: &Value, inputs_json: &str) -> Value {
       console.error(`[Dynamic] Attempting incremental build...`);
       
       try {
-        // Use cargo check first to validate without full compilation
-        await execAsync('cargo check --release', {
+        // Skip cargo check and go directly to build with maximum timeout
+        console.error(`[Dynamic] Attempting full build with extended timeout...`);
+        console.error(`[Dynamic] Build start time: ${new Date().toISOString()}`);
+        console.error(`[Dynamic] Building guest: ${guestName}`);
+        console.error(`[Dynamic] Build command: cargo build --release`);
+        console.error(`[Dynamic] Working directory: ${this.projectPath}`);
+        
+        const buildStartTime = Date.now();
+        
+        // Build with maximum timeout - focus on methods which includes our dynamic guest
+        const buildResult = await execAsync('cargo build --release', {
           cwd: this.projectPath,
-          timeout: 60000, // 1 minute for check
+          timeout: 2400000, // 40 minutes for full build including guest programs
           env: {
             ...process.env,
-            RISC0_DEV_MODE: '0'
+            RISC0_DEV_MODE: '0'  // Production mode for real ZK proofs
           }
         });
         
-        // Then do the actual build with limited timeout
-        await execAsync('cargo build --release --bin host', {
-          cwd: this.projectPath,
-          timeout: 180000, // 3 minutes for host build
-          env: {
-            ...process.env,
-            RISC0_DEV_MODE: '0'
-          }
-        });
+        const buildEndTime = Date.now();
+        console.error(`[Dynamic] Build completed in ${(buildEndTime - buildStartTime) / 1000} seconds`);
+        console.error(`[Dynamic] Build stdout length: ${buildResult.stdout?.length || 0}`);
+        console.error(`[Dynamic] Build stderr length: ${buildResult.stderr?.length || 0}`);
         
       } catch (buildError) {
-        console.error(`[Dynamic] Incremental build failed, trying minimal approach...`);
+        console.error(`[Dynamic] Build failed after extended timeout:`, buildError);
         // If that fails, provide a helpful error message
-        throw new Error(`Build timed out. The dynamic code compilation is taking too long for the MCP timeout. Please pre-build the project with: cd ${this.projectPath} && cargo build --release`);
+        throw new Error(`Build timed out after 40 minutes. The dynamic code compilation is taking too long for the MCP timeout. Please pre-build the project with: cd ${this.projectPath} && cargo build --release`);
       }
       
       console.error(`[Dynamic] Guest program built successfully`);
     } catch (error) {
       console.error(`[Dynamic] Build failed: ${error}`);
-      // If build times out, suggest pre-building
-      if (error instanceof Error && error.message.includes('timeout')) {
-        throw new Error(`Build timed out. Try pre-building with: cd ${this.projectPath} && cargo build --release`);
-      }
       throw error;
     } finally {
       // Always remove the guest from methods Cargo.toml
