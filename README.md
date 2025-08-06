@@ -26,8 +26,8 @@ The project consists of:
   - **Machine Learning**: K-means clustering, linear regression, neural networks
   - **Authenticated Operations**: Ed25519-signed computations
   - **Dynamic Execution**: Runtime Rust code compilation and execution
-- **RISC Zero Host Program** (`host/src/main.rs`): Proof generation and verification
-- **Verification Tool** (`verify/src/main.rs`): Independent proof verification with ML support
+ 
+More on [Risc Zero](https://risczero.com/)
 
 ## Prerequisites
 
