@@ -2,7 +2,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-A comprehensive Model Context Protocol (MCP) server that provides zero-knowledge proof computation using RISC Zero zkVM. Features include pre-built mathematical operations, private machine learning algorithms, dynamic Rust code execution, and LLM-driven zero-knowledge proof generation with cryptographic verification.
+A Model Context Protocol (MCP) server that allows trustless and verifiable agentic workflows using ZK proofs from Risc Zero. 
 
 https://github.com/user-attachments/assets/9a970034-442c-4ff9-972d-ad7c6d1a5079
 
