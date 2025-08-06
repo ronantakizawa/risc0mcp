@@ -398,4 +398,245 @@ export class BasicOperations {
   async performAuthenticatedRange(args: any): Promise<ToolResponse> {
     return this.performAuthenticatedOperation('range', args);
   }
+
+  async performKMeans(args: any): Promise<ToolResponse> {
+    const { dataPoints, k, maxIterations = 10, queryPoint } = args;
+
+    if (!Array.isArray(dataPoints) || dataPoints.length === 0) {
+      throw new McpError(ErrorCode.InvalidParams, 'dataPoints must be a non-empty array');
+    }
+    if (typeof k !== 'number' || k < 1) {
+      throw new McpError(ErrorCode.InvalidParams, 'k must be a positive integer');
+    }
+    if (!Array.isArray(queryPoint) || queryPoint.length !== 2) {
+      throw new McpError(ErrorCode.InvalidParams, 'queryPoint must be an array of 2 numbers [x, y]');
+    }
+
+    try {
+      console.error(`[API] Starting zkVM K-means clustering: ${dataPoints.length} points, k=${k}, query=[${queryPoint}]`);
+      
+      await ProjectUtils.ensureProjectExists(this.projectPath, false);
+      
+      const hostBinary = path.join(this.projectPath, 'target', 'release', 'host');
+      
+      const env = {
+        ...process.env,
+        RISC0_DEV_MODE: '0',
+        RUST_LOG: 'info'
+      };
+
+      if (!fs.existsSync(hostBinary)) {
+        throw new Error(`Host binary not found. Please run 'cargo build --release' in ${this.projectPath}`);
+      }
+
+      const inputData = JSON.stringify({
+        data_points: dataPoints,
+        k: k,
+        max_iterations: maxIterations,
+        query_point: queryPoint
+      });
+
+      const command = `${hostBinary} k_means '${inputData}'`;
+      
+      const execResult = await execAsync(command, { 
+        cwd: this.projectPath, 
+        env,
+        timeout: 90000
+      });
+
+      const result = ProjectUtils.parseJsonFromOutput(execResult.stdout);
+      
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              computation: {
+                operation: 'k_means_clustering',
+                inputs: {
+                  dataPoints: dataPoints,
+                  k: k,
+                  maxIterations: maxIterations,
+                  queryPoint: queryPoint
+                },
+                result: result.result,
+                clusteredDataPoints: result.clustered_data_points || 'N/A'
+              },
+              zkProof: {
+                mode: 'Production (real ZK proof)',
+                imageId: result.image_id,
+                verificationStatus: result.verification_status,
+                proofFilePath: result.proof_file_path ? path.resolve(this.projectPath, result.proof_file_path) : null
+              }
+            }, null, 2),
+          },
+        ],
+      };
+    } catch (error) {
+      throw new McpError(
+        ErrorCode.InternalError,
+        `Failed to perform zkVM K-means clustering: ${error instanceof Error ? error.message : String(error)}`
+      );
+    }
+  }
+
+  async performLinearRegression(args: any): Promise<ToolResponse> {
+    const { xValues, yValues, predictX } = args;
+
+    if (!Array.isArray(xValues) || !Array.isArray(yValues)) {
+      throw new McpError(ErrorCode.InvalidParams, 'xValues and yValues must be arrays');
+    }
+    if (xValues.length !== yValues.length || xValues.length < 2) {
+      throw new McpError(ErrorCode.InvalidParams, 'xValues and yValues must have same length and at least 2 elements');
+    }
+    if (typeof predictX !== 'number') {
+      throw new McpError(ErrorCode.InvalidParams, 'predictX must be a number');
+    }
+
+    try {
+      console.error(`[API] Starting zkVM linear regression: ${xValues.length} data points, predict x=${predictX}`);
+      
+      await ProjectUtils.ensureProjectExists(this.projectPath, false);
+      
+      const hostBinary = path.join(this.projectPath, 'target', 'release', 'host');
+      
+      const env = {
+        ...process.env,
+        RISC0_DEV_MODE: '0',
+        RUST_LOG: 'info'
+      };
+
+      if (!fs.existsSync(hostBinary)) {
+        throw new Error(`Host binary not found. Please run 'cargo build --release' in ${this.projectPath}`);
+      }
+
+      const inputData = JSON.stringify({
+        x_values: xValues,
+        y_values: yValues,
+        predict_x: predictX
+      });
+
+      const command = `${hostBinary} linear_regression '${inputData}'`;
+      
+      const execResult = await execAsync(command, { 
+        cwd: this.projectPath, 
+        env,
+        timeout: 90000
+      });
+
+      const result = ProjectUtils.parseJsonFromOutput(execResult.stdout);
+      
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              computation: {
+                operation: 'linear_regression',
+                inputs: {
+                  xValues: xValues,
+                  yValues: yValues,
+                  predictX: predictX
+                },
+                result: result.result,
+                slope: result.slope || 'N/A',
+                intercept: result.intercept || 'N/A'
+              },
+              zkProof: {
+                mode: 'Production (real ZK proof)',
+                imageId: result.image_id,
+                verificationStatus: result.verification_status,
+                proofFilePath: result.proof_file_path ? path.resolve(this.projectPath, result.proof_file_path) : null
+              }
+            }, null, 2),
+          },
+        ],
+      };
+    } catch (error) {
+      throw new McpError(
+        ErrorCode.InternalError,
+        `Failed to perform zkVM linear regression: ${error instanceof Error ? error.message : String(error)}`
+      );
+    }
+  }
+
+  async performNeuralNetwork(args: any): Promise<ToolResponse> {
+    const { inputs, learningRate = 0.1, epochs = 100 } = args;
+
+    if (!Array.isArray(inputs) || inputs.length === 0) {
+      throw new McpError(ErrorCode.InvalidParams, 'inputs must be a non-empty array');
+    }
+    if (typeof learningRate !== 'number' || learningRate <= 0) {
+      throw new McpError(ErrorCode.InvalidParams, 'learningRate must be a positive number');
+    }
+    if (typeof epochs !== 'number' || epochs < 1) {
+      throw new McpError(ErrorCode.InvalidParams, 'epochs must be a positive integer');
+    }
+
+    try {
+      console.error(`[API] Starting zkVM neural network: inputs=[${inputs}], lr=${learningRate}, epochs=${epochs}`);
+      
+      await ProjectUtils.ensureProjectExists(this.projectPath, false);
+      
+      const hostBinary = path.join(this.projectPath, 'target', 'release', 'host');
+      
+      const env = {
+        ...process.env,
+        RISC0_DEV_MODE: '0',
+        RUST_LOG: 'info'
+      };
+
+      if (!fs.existsSync(hostBinary)) {
+        throw new Error(`Host binary not found. Please run 'cargo build --release' in ${this.projectPath}`);
+      }
+
+      const inputData = JSON.stringify({
+        inputs: inputs,
+        learning_rate: learningRate,
+        epochs: epochs
+      });
+
+      const command = `${hostBinary} neural_network '${inputData}'`;
+      
+      const execResult = await execAsync(command, { 
+        cwd: this.projectPath, 
+        env,
+        timeout: 90000
+      });
+
+      const result = ProjectUtils.parseJsonFromOutput(execResult.stdout);
+      
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              computation: {
+                operation: 'neural_network',
+                inputs: {
+                  inputs: inputs,
+                  learningRate: learningRate,
+                  epochs: epochs
+                },
+                result: result.result,
+                finalWeights: result.final_weights || 'N/A',
+                finalOutput: result.final_output || 'N/A'
+              },
+              zkProof: {
+                mode: 'Production (real ZK proof)',
+                imageId: result.image_id,
+                verificationStatus: result.verification_status,
+                proofFilePath: result.proof_file_path ? path.resolve(this.projectPath, result.proof_file_path) : null
+              }
+            }, null, 2),
+          },
+        ],
+      };
+    } catch (error) {
+      throw new McpError(
+        ErrorCode.InternalError,
+        `Failed to perform zkVM neural network: ${error instanceof Error ? error.message : String(error)}`
+      );
+    }
+  }
 }

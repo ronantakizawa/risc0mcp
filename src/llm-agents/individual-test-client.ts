@@ -73,18 +73,23 @@ const TEST_DEFINITIONS: Record<string, TestDefinition> = {
   },
   'rust-file': {
     name: 'Rust File Execution Test',
-    message: 'Can you run the factorial calculation from the file test_samples/factorial.rs using zero-knowledge proofs?',
+    message: 'Can you run the neural network example from the file examples/neural_network.rs using zero-knowledge proofs?',
     expectedTool: 'zkvm_run_rust_file'
   },
-  fibonacci: {
-    name: 'Fibonacci Test',
-    message: 'Can you prove the 10th Fibonacci number using this Rust code: fn main() { let n = 10; let mut a = 0; let mut b = 1; for _ in 0..n { let temp = a + b; a = b; b = temp; } println!("{}", a); }',
-    expectedTool: 'zkvm_run_rust_code'
+  'k-means': {
+    name: 'K-Means Clustering Test',
+    message: 'Use the zkvm_k_means tool to perform K-means clustering on these data points: [[1.0, 2.0], [2.0, 1.0], [8.0, 9.0], [9.0, 8.0]] with k=2 clusters and classify the query point [1.5, 1.8].',
+    expectedTool: 'zkvm_k_means'
   },
-  factorial: {
-    name: 'Factorial Test',
-    message: 'Can you prove 5! = 120 using this Rust code: fn main() { let n = 5; let mut result = 1; for i in 1..=n { result *= i; } println!("{}! = {}", n, result); }',
-    expectedTool: 'zkvm_run_rust_code'
+  'linear-regression': {
+    name: 'Linear Regression Test',
+    message: 'Use the zkvm_linear_regression tool to perform linear regression on x values [1, 2, 3, 4, 5] and y values [2, 4, 6, 8, 10] then predict y for x=6.',
+    expectedTool: 'zkvm_linear_regression'
+  },
+  'neural-network': {
+    name: 'Neural Network Test',
+    message: 'Use the zkvm_neural_network tool to run a neural network with inputs [0.5, 0.3, 0.8] for private AI computation.',
+    expectedTool: 'zkvm_neural_network'
   }
 };
 

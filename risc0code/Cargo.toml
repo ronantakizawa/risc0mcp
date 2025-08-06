@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["host", "methods", "verify", "methods/guest-multiply", "methods/guest-sqrt", "methods/guest-modexp", "methods/guest-range", "methods/guest_authenticated_add"]
+members = ["host", "methods", "verify", "methods/guest-multiply", "methods/guest-sqrt", "methods/guest-modexp", "methods/guest-range", "methods/guest_authenticated_add", "methods/guest-k-means", "methods/guest-linear-regression", "methods/guest-neural-network"]
 exclude = ["methods/guest-dynamic-*"]
 
 # Always optimize; building and running the guest takes much longer without optimization.

@@ -145,7 +145,7 @@ export abstract class ProperMCPAgent {
     };
 
     return new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => reject(new Error('MCP call timeout')), 3000000); // 50 minutes for dynamic code compilation
+      const timeout = setTimeout(() => reject(new Error('MCP call timeout')), 6000000); // 100 minutes for complex ML compilation
 
       let responseBuffer = '';
       

@@ -2,35 +2,52 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-A Model Context Protocol (MCP) server that provides zero-knowledge proof computation using RISC Zero zkVM. This server supports dynamic Rust code execution, pre-built mathematical operations, and cryptographic proof generation with real image ID verification.
+A comprehensive Model Context Protocol (MCP) server that provides zero-knowledge proof computation using RISC Zero zkVM. Features include pre-built mathematical operations, private machine learning algorithms, dynamic Rust code execution, and LLM-driven zero-knowledge proof generation with cryptographic verification.
 
 https://github.com/user-attachments/assets/c32eec35-3bb5-42a5-b855-73100dfd3ff6
 
 ## Features
 
-- **🚀 Dynamic Rust Execution**: Compile and execute arbitrary Rust code in the zkVM
-- **🔐 Zero-Knowledge Proofs**: Generate real ZK-STARK proofs with authentic image ID verification
-- **📚 Pre-built Operations**: Addition, multiplication, square root, modular exponentiation, and range proofs
-- **🏭 Production & Development Modes**: Full ZK-STARK proofs or fast development execution
-- **🔗 MCP Integration**: Compatible with Claude and other MCP clients
-- **💾 Proof Persistence**: Timestamped binary proof files for verification and archival
-- **⚡ Optimized Performance**: ~3-5 seconds for proof generation after initial build
-- **🔢 High-Precision Arithmetic**: Fixed-point decimal support for mathematical operations
-- **🔒 Real Image ID Verification**: Cryptographically authentic image IDs computed from ELF data
-- **🐳 Docker-based Compilation**: Consistent RISC-V cross-compilation environment
+### 🧠 **Private Machine Learning**
+- **K-Means Clustering**: Classify data points without revealing training data
+- **Linear Regression**: Make predictions while keeping datasets private  
+- **Neural Networks**: AI inference with hidden model weights
+- **Zero-Knowledge ML**: All computations generate cryptographic proofs
+
+### 🔐 **Zero-Knowledge Proofs**
+- **Real ZK-STARK Proofs**: Production-grade cryptographic verification
+- **Mathematical Operations**: Addition, multiplication, square root, modular exponentiation
+- **Range Proofs**: Prove values are within bounds without revealing them
+- **Authenticated Computations**: Ed25519 digital signatures for additional security
+
+### 🚀 **Advanced Capabilities**
+- **LLM-Driven Execution**: AI agents that generate and verify proofs autonomously
+- **Dynamic Rust Execution**: Compile and execute arbitrary Rust code in the zkVM
+- **HTTP File Upload System**: Distributed proof verification across network endpoints
+- **MCP Integration**: Compatible with Claude and other MCP clients
+- **Production & Development Modes**: Full ZK-STARK proofs or fast development execution
+
+### ⚡ **Performance & Reliability**
+- **Optimized ML Operations**: 20-45 seconds for complete proof generation
+- **Pre-compiled Guest Programs**: No compilation overhead for ML operations
+- **High-Precision Arithmetic**: Fixed-point decimal support for mathematical operations
+- **Proof Persistence**: Timestamped binary proof files for verification and archival
 
 ## Architecture
 
 The project consists of:
 - **MCP Server** (`src/index.ts`): Node.js server implementing MCP protocol
+- **LLM Agent System**: AI-driven proof generation and verification
+  - ProverAgent: Generates ZK proofs for mathematical claims
+  - VerifierAgent: Independently verifies received proofs
+  - HTTP File Upload System: Distributed proof transmission
 - **RISC Zero Guest Programs**: 
-  - Addition computation (`methods/guest/src/main.rs`)
-  - Multiplication computation (`methods/guest-multiply/src/main.rs`)
-  - Square root computation (`methods/guest-sqrt/src/main.rs`)
-  - Modular exponentiation computation (`methods/guest-modexp/src/main.rs`)
-  - Range proof computation (`methods/guest-range/src/main.rs`)
+  - **Mathematical Operations**: Addition, multiplication, square root, modular exponentiation, range proofs
+  - **Machine Learning**: K-means clustering, linear regression, neural networks
+  - **Authenticated Operations**: Ed25519-signed computations
+  - **Dynamic Execution**: Runtime Rust code compilation and execution
 - **RISC Zero Host Program** (`host/src/main.rs`): Proof generation and verification
-- **Verification Tool** (`verify/src/main.rs`): Independent proof verification
+- **Verification Tool** (`verify/src/main.rs`): Independent proof verification with ML support
 
 ## Prerequisites
 
@@ -75,15 +92,26 @@ cargo build --release
 cd ..
 ```
 
-### Step 5: Start Docker (Required for Dynamic Compilation)
-Make sure Docker is running on your system:
+### Step 5: Test the Installation
+Verify everything works with the ML operations:
 ```bash
-# On macOS/Linux
-docker --version
+# Test the machine learning functionality
+npm run test:k-means          # K-means clustering (~30-45 seconds)
+npm run test:linear-regression # Linear regression (~20-30 seconds)
+npm run test:neural-network   # Neural network inference (~20-30 seconds)
 
-# Start Docker if not running
-# On macOS: Open Docker Desktop
-# On Linux: sudo systemctl start docker
+# Test mathematical operations  
+npm run test:add              # Addition with ZK proof
+npm run test:multiply         # Multiplication with ZK proof
+```
+
+**Expected Output**: Each test should show successful proof generation and verification with messages like:
+```
+✅ Test completed successfully
+🔧 Tool used: zkvm_k_means
+✅ Correct tool selected by LLM  
+📄 Proof generated: /path/to/proof_k_means_timestamp.bin
+✅ Proof verification successful
 ```
 
 ## Setup with Claude Desktop
@@ -155,6 +183,11 @@ The MCP server runs automatically when Claude Desktop starts. You can interact w
 
 ### Example Prompts
 
+**Private Machine Learning:**
+- "Perform K-means clustering on these data points: [[1,2], [2,1], [8,9], [9,8]] with k=2"
+- "Do linear regression on x=[1,2,3,4,5] and y=[2,4,6,8,10], predict y for x=6"  
+- "Run a neural network with inputs [0.5, 0.3, 0.8] for private AI computation"
+
 **Mathematical Operations:**
 - "Add 15.7 and 23.4 using zero-knowledge proofs"
 - "Calculate the square root of 144 with cryptographic verification"
@@ -163,6 +196,7 @@ The MCP server runs automatically when Claude Desktop starts. You can interact w
 **Cryptographic Operations:**
 - "Compute 2^10 mod 1000 using modular exponentiation"
 - "Prove that my secret number is between 18 and 65 (range proof)"
+- "Generate an authenticated addition proof using my private key"
 
 **Dynamic Rust Execution:**
 - "Execute this Rust code in the zkVM: [paste your Rust code]"

@@ -1,4 +1,4 @@
-use methods::{ADDITION_ID, MULTIPLY_GUEST_ID, SQRT_GUEST_ID, MODEXP_GUEST_ID, GUEST_RANGE_ID, GUEST_AUTHENTICATED_ADD_ID};
+use methods::{ADDITION_ID, MULTIPLY_GUEST_ID, SQRT_GUEST_ID, MODEXP_GUEST_ID, GUEST_RANGE_ID, GUEST_AUTHENTICATED_ADD_ID, GUEST_K_MEANS_ID, GUEST_LINEAR_REGRESSION_ID, GUEST_NEURAL_NETWORK_ID};
 use risc0_zkvm::Receipt;
 use std::fs;
 use clap::Parser;
@@ -42,6 +42,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         
         if filename.contains("authenticated_add") {
             "authenticated_add".to_string()
+        } else if filename.contains("k_means") {
+            "k_means".to_string()
+        } else if filename.contains("linear_regression") {
+            "linear_regression".to_string()
+        } else if filename.contains("neural_network") {
+            "neural_network".to_string()
         } else if filename.contains("multiply") {
             "multiply".to_string()
         } else if filename.contains("sqrt") {
@@ -63,6 +69,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "modexp" => (MODEXP_GUEST_ID, "modular exponentiation"),
         "range" => (GUEST_RANGE_ID, "range proof"),
         "authenticated_add" => (GUEST_AUTHENTICATED_ADD_ID, "authenticated addition"),
+        "k_means" => (GUEST_K_MEANS_ID, "K-means clustering"),
+        "linear_regression" => (GUEST_LINEAR_REGRESSION_ID, "linear regression"),
+        "neural_network" => (GUEST_NEURAL_NETWORK_ID, "neural network"),
         "precompiled" => ([0u32; 8], "dynamic Rust code"), // Dynamic image ID will be extracted from proof
         _ => (ADDITION_ID, "addition"),
     };
@@ -189,6 +198,36 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("➡️  Computation result: secret ∈ [{}, {}] = {}", min_value, max_value, in_range);
             println!("🔍 Range check details: above_min={}, below_max={}", above_min, below_max);
             if in_range { 1 } else { 0 }
+        },
+        "k_means" | "linear_regression" | "neural_network" => {
+            // For ML operations, journal contains the result (i64 for k_means, scaled i64 for regression/neural)
+            if computation_bytes.len() < 8 {
+                return Err("Journal too short for ML operation".into());
+            }
+            
+            // Single i64 result (little-endian)
+            let result_raw = i64::from_le_bytes([
+                computation_bytes[0], computation_bytes[1], computation_bytes[2], computation_bytes[3], 
+                computation_bytes[4], computation_bytes[5], computation_bytes[6], computation_bytes[7]
+            ]);
+            
+            match operation.as_str() {
+                "k_means" => {
+                    println!("➡️  K-means clustering result: cluster {}", result_raw);
+                    result_raw as i32
+                },
+                "linear_regression" => {
+                    let prediction = result_raw as f64 / 1000.0; // Unscale from x1000
+                    println!("➡️  Linear regression prediction: {}", prediction);
+                    prediction as i32
+                },
+                "neural_network" => {
+                    let output = result_raw as f64 / 1000.0; // Unscale from x1000
+                    println!("➡️  Neural network output: {}", output);
+                    output as i32
+                },
+                _ => result_raw as i32
+            }
         },
         "precompiled" => {
             // For precompiled/dynamic operations, journal contains just the result (i64)

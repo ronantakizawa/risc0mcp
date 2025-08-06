@@ -1,4 +1,4 @@
-use methods::{ADDITION_ELF, ADDITION_ID, MULTIPLY_GUEST_ELF, MULTIPLY_GUEST_ID, SQRT_GUEST_ELF, SQRT_GUEST_ID, MODEXP_GUEST_ELF, MODEXP_GUEST_ID, GUEST_RANGE_ELF, GUEST_RANGE_ID, GUEST_AUTHENTICATED_ADD_ELF, GUEST_AUTHENTICATED_ADD_ID};
+use methods::{ADDITION_ELF, ADDITION_ID, MULTIPLY_GUEST_ELF, MULTIPLY_GUEST_ID, SQRT_GUEST_ELF, SQRT_GUEST_ID, MODEXP_GUEST_ELF, MODEXP_GUEST_ID, GUEST_RANGE_ELF, GUEST_RANGE_ID, GUEST_AUTHENTICATED_ADD_ELF, GUEST_AUTHENTICATED_ADD_ID, GUEST_K_MEANS_ELF, GUEST_K_MEANS_ID, GUEST_LINEAR_REGRESSION_ELF, GUEST_LINEAR_REGRESSION_ID, GUEST_NEURAL_NETWORK_ELF, GUEST_NEURAL_NETWORK_ID};
 use risc0_zkvm::{default_prover, ExecutorEnv, compute_image_id};
 use std::mem;
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
@@ -207,10 +207,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 std::process::exit(1);
             }
         }
+        "k_means" | "linear_regression" | "neural_network" => {
+            if args.len() != 3 {
+                eprintln!("Usage: {} {} <json_inputs>", args[0], operation);
+                std::process::exit(1);
+            }
+        }
         _ => {
             if args.len() != 4 {
                 eprintln!("Usage: {} <operation> <a> <b>", args[0]);
-                eprintln!("Operations: add, multiply, sqrt, modexp, range, dynamic, precompiled, authenticated_add");
+                eprintln!("Operations: add, multiply, sqrt, modexp, range, dynamic, precompiled, authenticated_add, k_means, linear_regression, neural_network");
                 std::process::exit(1);
             }
         }
@@ -365,6 +371,21 @@ path = "src/main.rs"
             (GUEST_AUTHENTICATED_ADD_ELF, GUEST_AUTHENTICATED_ADD_ID, "auth+", 
              format!("authenticated {} + {} (key: {}, task: {})", a, b, key_id, task_id), expected_result, "authenticated")
         },
+        "k_means" => {
+            let inputs_json = &args[2];
+            (GUEST_K_MEANS_ELF, GUEST_K_MEANS_ID, "k-means", 
+             format!("K-means clustering with inputs: {}", inputs_json), 0i64, "ml")
+        },
+        "linear_regression" => {
+            let inputs_json = &args[2];
+            (GUEST_LINEAR_REGRESSION_ELF, GUEST_LINEAR_REGRESSION_ID, "linear_reg", 
+             format!("Linear regression with inputs: {}", inputs_json), 0i64, "ml")
+        },
+        "neural_network" => {
+            let inputs_json = &args[2];
+            (GUEST_NEURAL_NETWORK_ELF, GUEST_NEURAL_NETWORK_ID, "neural_net", 
+             format!("Neural network with inputs: {}", inputs_json), 0i64, "ml")
+        },
         "dynamic" | "precompiled" => {
             let inputs_json = &args[3];
             let elf_data = dynamic_elf_data.as_ref().expect("Dynamic/Precompiled ELF data should be loaded");
@@ -442,6 +463,17 @@ path = "src/main.rs"
                 .write(&b)?
                 .write(&timestamp)?                  // Timestamp
                 .write(&task_id.to_string())?        // Task ID
+                .build()?
+        },
+        "k_means" | "linear_regression" | "neural_network" => {
+            let inputs_json = &args[2];
+            
+            // Parse inputs JSON to validate it's valid JSON
+            let _inputs: serde_json::Value = serde_json::from_str(inputs_json)
+                .map_err(|e| format!("Invalid JSON inputs: {}", e))?;
+            
+            ExecutorEnv::builder()
+                .write(&inputs_json)?     // Write JSON string directly
                 .build()?
         },
         "dynamic" | "precompiled" => {
@@ -641,6 +673,36 @@ path = "src/main.rs"
             
             (computation_result.result as f64, computation_result.result)
         },
+        "k_means" | "linear_regression" | "neural_network" => {
+            // For ML operations, extract the result from the journal
+            let bytes = &receipt.journal.bytes;
+            if bytes.is_empty() {
+                return Err("Journal is empty for ML operation".into());
+            }
+            
+            // For now, assume ML operations commit a JSON result string
+            // Try to decode as string first, or fall back to simple numeric result
+            let result = if bytes.len() >= 8 {
+                // Try to extract a simple numeric result (f64)
+                if bytes.len() >= 8 {
+                    let result_bytes = &bytes[0..8];
+                    let result_f64 = f64::from_le_bytes([
+                        result_bytes[0], result_bytes[1], result_bytes[2], result_bytes[3],
+                        result_bytes[4], result_bytes[5], result_bytes[6], result_bytes[7]
+                    ]);
+                    eprintln!("🔢 ML computation result: {}", result_f64);
+                    (result_f64, result_f64 as i64)
+                } else {
+                    eprintln!("🔢 ML computation completed (no specific result extracted)");
+                    (0.0, 0)
+                }
+            } else {
+                eprintln!("🔢 ML computation completed (journal too short)");
+                (0.0, 0)
+            };
+            
+            result
+        },
         "dynamic" | "precompiled" => {
             // For dynamic/precompiled operations, try to extract the result from the journal
             let bytes = &receipt.journal.bytes;
@@ -763,6 +825,10 @@ path = "src/main.rs"
             let min_value: u64 = args[3].parse().expect("Third argument must be a positive integer");
             let max_value: u64 = args[4].parse().expect("Fourth argument must be a positive integer");
             println!("  \"inputs\": {{ \"min\": {}, \"max\": {} }},", min_value, max_value);
+        },
+        "k_means" | "linear_regression" | "neural_network" => {
+            let inputs_json = &args[2];
+            println!("  \"inputs\": {},", inputs_json);
         },
         "dynamic" | "precompiled" => {
             let inputs_json = &args[3];

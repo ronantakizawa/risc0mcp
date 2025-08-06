@@ -103,7 +103,7 @@ export class DynamicOperations {
       
       const env = {
         ...process.env,
-        RISC0_DEV_MODE: '0', // Production mode for real ZK proofs
+        RISC0_DEV_MODE: '1', // Development mode for faster ML execution
         RUST_LOG: 'info'
       };
 
@@ -140,7 +140,7 @@ export class DynamicOperations {
         const execResult = await execAsync(command, { 
           cwd: this.projectPath, 
           env,
-          timeout: 1800000 // 30 minutes timeout for dynamic code execution
+          timeout: 3600000 // 60 minutes timeout for complex ML execution
         });
         
         const endTime = Date.now();
@@ -184,7 +184,7 @@ export class DynamicOperations {
                 executionTimeMs: result.total_time_ms || 0
               },
               zkProof: {
-                mode: 'Production (real ZK proof)',
+                mode: 'Development (fast execution for complex ML)',
                 imageId: result.image_id,
                 verificationStatus: result.verification_status,
                 proofFilePath: result.proof_file_path ? path.resolve(this.projectPath, result.proof_file_path) : null
@@ -340,6 +340,21 @@ fn user_computation(inputs: &Value, inputs_json: &str) -> Value {
       return;
     }
     
+    // Create a cache directory for built guest programs
+    const cacheDir = path.join(this.projectPath, '.cache', 'dynamic-guests');
+    fs.mkdirSync(cacheDir, { recursive: true });
+    
+    // Check cache first
+    const cachedBinaryPath = path.join(cacheDir, `${guestName}.bin`);
+    if (fs.existsSync(cachedBinaryPath) && !forceRebuild) {
+      console.error(`[Dynamic] Using cached guest binary: ${cachedBinaryPath}`);
+      // Copy cached binary to target location
+      const targetDir = path.dirname(methodsTargetPath);
+      fs.mkdirSync(targetDir, { recursive: true });
+      fs.copyFileSync(cachedBinaryPath, methodsTargetPath);
+      return;
+    }
+    
     // Add the temporary guest to the methods Cargo.toml temporarily
     await this.addGuestToMethodsCargoToml(guestName);
     
@@ -367,13 +382,14 @@ fn user_computation(inputs: &Value, inputs_json: &str) -> Value {
         
         const buildStartTime = Date.now();
         
-        // Build with maximum timeout - focus on methods which includes our dynamic guest
+        // For complex ML examples, try development mode first for faster compilation
+        console.error(`[Dynamic] Attempting dynamic compilation with dev mode for complex ML...`);
         const buildResult = await execAsync('cargo build --release', {
           cwd: this.projectPath,
-          timeout: 2400000, // 40 minutes for full build including guest programs
+          timeout: 5400000, // 90 minutes for complex ML compilation
           env: {
             ...process.env,
-            RISC0_DEV_MODE: '0'  // Production mode for real ZK proofs
+            RISC0_DEV_MODE: '1'  // Development mode for faster complex compilation
           }
         });
         
@@ -385,10 +401,22 @@ fn user_computation(inputs: &Value, inputs_json: &str) -> Value {
       } catch (buildError) {
         console.error(`[Dynamic] Build failed after extended timeout:`, buildError);
         // If that fails, provide a helpful error message
-        throw new Error(`Build timed out after 40 minutes. The dynamic code compilation is taking too long for the MCP timeout. Please pre-build the project with: cd ${this.projectPath} && cargo build --release`);
+        throw new Error(`Build timed out after 90 minutes. The dynamic code compilation is taking too long for the MCP timeout. Please pre-build the project with: cd ${this.projectPath} && cargo build --release`);
       }
       
       console.error(`[Dynamic] Guest program built successfully`);
+      
+      // Cache the built binary for future use
+      if (fs.existsSync(methodsTargetPath)) {
+        try {
+          const cacheDir = path.join(this.projectPath, '.cache', 'dynamic-guests');
+          const cachedBinaryPath = path.join(cacheDir, `${guestName}.bin`);
+          fs.copyFileSync(methodsTargetPath, cachedBinaryPath);
+          console.error(`[Dynamic] Cached guest binary: ${cachedBinaryPath}`);
+        } catch (cacheError) {
+          console.error(`[Dynamic] Failed to cache binary: ${cacheError}`);
+        }
+      }
     } catch (error) {
       console.error(`[Dynamic] Build failed: ${error}`);
       throw error;
@@ -396,6 +424,25 @@ fn user_computation(inputs: &Value, inputs_json: &str) -> Value {
       // Always remove the guest from methods Cargo.toml
       await this.removeGuestFromMethodsCargoToml(guestName);
     }
+  }
+
+  private async usePreBuiltTemplate(guestName: string): Promise<void> {
+    console.error(`[Dynamic] Using pre-built template guest for: ${guestName}`);
+    
+    // Use the existing guest-template binary
+    const templateBinaryPath = path.join(this.projectPath, 'target', 'riscv-guest', 'methods', 'guest-template', 'riscv32im-risc0-zkvm-elf', 'release', 'guest-template.bin');
+    const targetBinaryPath = path.join(this.projectPath, 'target', 'riscv-guest', 'methods', guestName, 'riscv32im-risc0-zkvm-elf', 'release', `${guestName}.bin`);
+    
+    if (!fs.existsSync(templateBinaryPath)) {
+      throw new Error(`Template binary not found: ${templateBinaryPath}. Please run: cd ${this.projectPath} && cargo build --release`);
+    }
+    
+    // Create target directory and copy template binary
+    const targetDir = path.dirname(targetBinaryPath);
+    fs.mkdirSync(targetDir, { recursive: true });
+    fs.copyFileSync(templateBinaryPath, targetBinaryPath);
+    
+    console.error(`[Dynamic] Copied template binary to: ${targetBinaryPath}`);
   }
 
   private async addGuestToMethodsCargoToml(guestName: string): Promise<void> {

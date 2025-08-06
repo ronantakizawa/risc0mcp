@@ -343,5 +343,87 @@ export const toolDefinitions = [
       },
       required: ['secretNumber', 'minValue', 'maxValue'],
     },
+  },
+  {
+    name: 'zkvm_k_means',
+    description: 'Perform K-means clustering algorithm with zero-knowledge proof for private machine learning',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        dataPoints: {
+          type: 'array',
+          description: 'Array of data points, each as [x, y] coordinates',
+          items: {
+            type: 'array',
+            items: { type: 'number' }
+          }
+        },
+        k: {
+          type: 'integer',
+          description: 'Number of clusters',
+          minimum: 1
+        },
+        maxIterations: {
+          type: 'integer',
+          description: 'Maximum iterations for convergence',
+          default: 10
+        },
+        queryPoint: {
+          type: 'array',
+          description: 'Query point to classify [x, y]',
+          items: { type: 'number' }
+        }
+      },
+      required: ['dataPoints', 'k', 'queryPoint'],
+    },
+  },
+  {
+    name: 'zkvm_linear_regression',
+    description: 'Perform linear regression analysis with zero-knowledge proof for private statistical modeling',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        xValues: {
+          type: 'array',
+          description: 'Array of x (independent) values',
+          items: { type: 'number' }
+        },
+        yValues: {
+          type: 'array',
+          description: 'Array of y (dependent) values',
+          items: { type: 'number' }
+        },
+        predictX: {
+          type: 'number',
+          description: 'X value to predict Y for'
+        }
+      },
+      required: ['xValues', 'yValues', 'predictX'],
+    },
+  },
+  {
+    name: 'zkvm_neural_network',
+    description: 'Execute neural network computation with zero-knowledge proof for private AI inference',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        inputs: {
+          type: 'array',
+          description: 'Input values for the neural network',
+          items: { type: 'number' }
+        },
+        learningRate: {
+          type: 'number',
+          description: 'Learning rate for training',
+          default: 0.1
+        },
+        epochs: {
+          type: 'integer',
+          description: 'Number of training epochs',
+          default: 100
+        }
+      },
+      required: ['inputs'],
+    },
   }
 ];

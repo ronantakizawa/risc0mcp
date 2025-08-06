@@ -112,6 +112,12 @@ export class RiscZeroCodeServer {
             return await this.basicOps.performAuthenticatedModexp(request.params.arguments);
           case 'zkvm_authenticated_range':
             return await this.basicOps.performAuthenticatedRange(request.params.arguments);
+          case 'zkvm_k_means':
+            return await this.basicOps.performKMeans(request.params.arguments);
+          case 'zkvm_linear_regression':
+            return await this.basicOps.performLinearRegression(request.params.arguments);
+          case 'zkvm_neural_network':
+            return await this.basicOps.performNeuralNetwork(request.params.arguments);
           default:
             throw new McpError(
               ErrorCode.MethodNotFound,

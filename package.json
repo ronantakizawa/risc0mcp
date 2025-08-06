@@ -33,8 +33,9 @@
     "test:auth-range": "node dist/llm-agents/individual-test-client.js auth-range",
     "test:rust-code": "node dist/llm-agents/individual-test-client.js rust-code",
     "test:rust-file": "node dist/llm-agents/individual-test-client.js rust-file",
-    "test:fibonacci": "node dist/llm-agents/individual-test-client.js fibonacci",
-    "test:factorial": "node dist/llm-agents/individual-test-client.js factorial",
+    "test:k-means": "node dist/llm-agents/individual-test-client.js k-means",
+    "test:linear-regression": "node dist/llm-agents/individual-test-client.js linear-regression",
+    "test:neural-network": "node dist/llm-agents/individual-test-client.js neural-network",
     "encrypt-keys": "npm run build && node dist/scripts/encrypt-keys.js"
   },
   "keywords": [
