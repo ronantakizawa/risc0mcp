@@ -167,8 +167,7 @@ export abstract class BaseLLMAgent {
     console.log(`[${this.name}] Received message:`, {
       from: message.from,
       type: message.type,
-      content: message.content.substring(0, 100) + (message.content.length > 100 ? '...' : ''),
-      hasZkProof: !!message.zkProof
+      content: message.content.substring(0, 100) + (message.content.length > 100 ? '...' : '')
     });
   }
 

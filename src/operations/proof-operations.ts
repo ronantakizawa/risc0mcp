@@ -57,8 +57,17 @@ export class ProofOperations {
       const output = execResult.stdout;
       const stderr = execResult.stderr;
 
-      // Extract result from output (look for "➡️  Computation result: ... = X")
-      const resultMatch = output.match(/➡️\s*Computation result:.*?=\s*([-+]?\d*\.?\d+)/);
+      // Extract result from output (all supported formats)
+      // Format 1: "➡️  Computation result: sqrt(N) = X" (math operations)
+      // Format 2: "➡️  Computation result: A^B mod C = X" (modexp)
+      // Format 3: "➡️  Computation result: secret ∈ [min, max] = X" (range proof)
+      // Format 4: "➡️  Computation result: A + B = X" (addition/multiply)
+      // Format 5: "➡️  K-means clustering result: cluster X" (k-means)
+      // Format 6: "➡️  Linear regression prediction: X" (linear regression)
+      // Format 7: "➡️  Neural network output: X" (neural network)  
+      // Format 8: "➡️  Logistic regression probability: X.XXXX (classification)" (logistic)
+      // Format 9: "➡️  Computation result: X" (generic/dynamic)
+      const resultMatch = output.match(/➡️\s*(?:Computation result:.*?=\s*|K-means clustering result: cluster\s*|Linear regression prediction:\s*|Neural network output:\s*|Logistic regression probability:\s*|Computation result:\s*)([-+]?\d*\.?\d+)/);
       const extractedResult = resultMatch ? parseFloat(resultMatch[1]) : null;
 
       // Check if verification was successful

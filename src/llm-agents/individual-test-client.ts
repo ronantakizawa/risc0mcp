@@ -90,6 +90,11 @@ const TEST_DEFINITIONS: Record<string, TestDefinition> = {
     name: 'Neural Network Test',
     message: 'Use the zkvm_neural_network tool to run a neural network with inputs [0.5, 0.3, 0.8] for private AI computation.',
     expectedTool: 'zkvm_neural_network'
+  },
+  'logistic-regression': {
+    name: 'Logistic Regression Classification Test',
+    message: 'Use the zkvm_logistic_regression tool to perform binary classification with features [2.5, 1.8, 3.2] using task "logistic_regression".',
+    expectedTool: 'zkvm_logistic_regression'
   }
 };
 

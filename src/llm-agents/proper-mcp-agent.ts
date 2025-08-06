@@ -255,9 +255,7 @@ export abstract class ProperMCPAgent {
     console.log(`[${this.name}] Received message:`, {
       from: message.from,
       type: message.type,
-      content: message.content.substring(0, 100) + (message.content.length > 100 ? '...' : ''),
-      hasToolCalls: !!message.toolCalls,
-      hasToolResults: !!message.toolResults
+      content: message.content.substring(0, 100) + (message.content.length > 100 ? '...' : '')
     });
   }
 

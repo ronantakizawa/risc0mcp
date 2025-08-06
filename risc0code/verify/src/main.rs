@@ -1,4 +1,4 @@
-use methods::{ADDITION_ID, MULTIPLY_GUEST_ID, SQRT_GUEST_ID, MODEXP_GUEST_ID, GUEST_RANGE_ID, GUEST_AUTHENTICATED_ADD_ID, GUEST_K_MEANS_ID, GUEST_LINEAR_REGRESSION_ID, GUEST_NEURAL_NETWORK_ID};
+use methods::{ADDITION_ID, MULTIPLY_GUEST_ID, SQRT_GUEST_ID, MODEXP_GUEST_ID, GUEST_RANGE_ID, GUEST_AUTHENTICATED_ADD_ID, GUEST_K_MEANS_ID, GUEST_LINEAR_REGRESSION_ID, GUEST_NEURAL_NETWORK_ID, GUEST_LOGISTIC_REGRESSION_ID};
 use risc0_zkvm::Receipt;
 use std::fs;
 use clap::Parser;
@@ -48,6 +48,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             "linear_regression".to_string()
         } else if filename.contains("neural_network") {
             "neural_network".to_string()
+        } else if filename.contains("logistic_regression") {
+            "logistic_regression".to_string()
         } else if filename.contains("multiply") {
             "multiply".to_string()
         } else if filename.contains("sqrt") {
@@ -72,6 +74,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "k_means" => (GUEST_K_MEANS_ID, "K-means clustering"),
         "linear_regression" => (GUEST_LINEAR_REGRESSION_ID, "linear regression"),
         "neural_network" => (GUEST_NEURAL_NETWORK_ID, "neural network"),
+        "logistic_regression" => (GUEST_LOGISTIC_REGRESSION_ID, "logistic regression"),
         "precompiled" => ([0u32; 8], "dynamic Rust code"), // Dynamic image ID will be extracted from proof
         _ => (ADDITION_ID, "addition"),
     };
@@ -199,8 +202,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("🔍 Range check details: above_min={}, below_max={}", above_min, below_max);
             if in_range { 1 } else { 0 }
         },
-        "k_means" | "linear_regression" | "neural_network" => {
-            // For ML operations, journal contains the result (i64 for k_means, scaled i64 for regression/neural)
+        "k_means" | "linear_regression" | "neural_network" | "logistic_regression" => {
+            // For ML operations, journal contains the result (i64 for k_means, scaled i64 for regression/neural/logistic)
             if computation_bytes.len() < 8 {
                 return Err("Journal too short for ML operation".into());
             }
@@ -225,6 +228,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     let output = result_raw as f64 / 1000.0; // Unscale from x1000
                     println!("➡️  Neural network output: {}", output);
                     output as i32
+                },
+                "logistic_regression" => {
+                    let probability = result_raw as f64 / 10000.0; // Unscale from x10000
+                    let classification = if probability >= 0.5 { "positive" } else { "negative" };
+                    println!("➡️  Logistic regression probability: {:.4} ({})", probability, classification);
+                    (probability * 10000.0) as i32 // Return scaled for consistency
                 },
                 _ => result_raw as i32
             }

@@ -19,7 +19,7 @@
     "mcp-server": "node dist/index.js",
     "verifier-server": "node dist/llm-agents/verifier-server.js",
     "prover-client": "node dist/llm-agents/prover-client.js",
-    "comprehensive-test": "npm run test:add && npm run test:multiply && npm run test:sqrt && npm run test:modexp && npm run test:range && npm run test:rust-code && npm run test:rust-file && npm run test:k-means && npm run test:linear-regression && npm run test:neural-network",
+    "comprehensive-test": "npm run test:add && npm run test:multiply && npm run test:sqrt && npm run test:modexp && npm run test:range && npm run test:rust-code && npm run test:rust-file && npm run test:k-means && npm run test:linear-regression && npm run test:neural-network && npm run test:logistic-regression",
     "demo": "node dist/llm-agents/main.js",
     "test:add": "node dist/llm-agents/individual-test-client.js add",
     "test:multiply": "node dist/llm-agents/individual-test-client.js multiply",
@@ -31,6 +31,7 @@
     "test:k-means": "node dist/llm-agents/individual-test-client.js k-means",
     "test:linear-regression": "node dist/llm-agents/individual-test-client.js linear-regression",
     "test:neural-network": "node dist/llm-agents/individual-test-client.js neural-network",
+    "test:logistic-regression": "node dist/llm-agents/individual-test-client.js logistic-regression",
     "encrypt-keys": "npm run build && node dist/scripts/encrypt-keys.js"
   },
   "keywords": [

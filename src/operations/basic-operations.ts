@@ -639,4 +639,83 @@ export class BasicOperations {
       );
     }
   }
+
+  async performLogisticRegression(args: any): Promise<ToolResponse> {
+    const { features, featureNames = [], task = 'binary_classification' } = args;
+
+    if (!Array.isArray(features) || features.length === 0) {
+      throw new McpError(ErrorCode.InvalidParams, 'features must be a non-empty array');
+    }
+    if (!features.every(f => typeof f === 'number')) {
+      throw new McpError(ErrorCode.InvalidParams, 'all features must be numbers');
+    }
+    if (typeof task !== 'string') {
+      throw new McpError(ErrorCode.InvalidParams, 'task must be a string');
+    }
+
+    const env = {
+      ...process.env,
+      RISC0_DEV_MODE: '0'
+    };
+
+    try {
+      const hostBinary = path.join(this.projectPath, 'target', 'release', 'host');
+      
+      if (!fs.existsSync(hostBinary)) {
+        throw new Error(`Host binary not found. Please run 'cargo build --release' in ${this.projectPath}`);
+      }
+
+      const inputData = JSON.stringify({
+        features: features,
+        feature_names: featureNames,
+        task: task
+      });
+
+      const command = `${hostBinary} logistic_regression '${inputData}'`;
+      
+      const execResult = await execAsync(command, { 
+        cwd: this.projectPath, 
+        env,
+        timeout: 60000
+      });
+
+      const result = ProjectUtils.parseJsonFromOutput(execResult.stdout);
+      
+      // Convert scaled result back to probability (divide by 10000)
+      const probability = result.result / 10000.0;
+      const classification = probability >= 0.5 ? 'positive' : 'negative';
+      
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              computation: {
+                operation: 'logistic_regression',
+                inputs: {
+                  features: features,
+                  featureNames: featureNames,
+                  task: task
+                },
+                result: probability,
+                classification: classification,
+                confidence: Math.abs(probability - 0.5) * 2 // 0 to 1 confidence
+              },
+              zkProof: {
+                mode: 'Production (real ZK proof)',
+                imageId: result.image_id,
+                verificationStatus: result.verification_status,
+                proofFilePath: result.proof_file_path ? path.resolve(this.projectPath, result.proof_file_path) : null
+              }
+            }, null, 2),
+          },
+        ],
+      };
+    } catch (error) {
+      throw new McpError(
+        ErrorCode.InternalError,
+        `Failed to perform zkVM logistic regression: ${error instanceof Error ? error.message : String(error)}`
+      );
+    }
+  }
 }

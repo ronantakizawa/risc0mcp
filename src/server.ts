@@ -118,6 +118,8 @@ export class RiscZeroCodeServer {
             return await this.basicOps.performLinearRegression(request.params.arguments);
           case 'zkvm_neural_network':
             return await this.basicOps.performNeuralNetwork(request.params.arguments);
+          case 'zkvm_logistic_regression':
+            return await this.basicOps.performLogisticRegression(request.params.arguments);
           default:
             throw new McpError(
               ErrorCode.MethodNotFound,

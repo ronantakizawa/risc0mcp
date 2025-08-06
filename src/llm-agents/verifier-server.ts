@@ -118,6 +118,23 @@ class VerifierAgentServer {
         const hasToolsUsed = response.toolResults && response.toolResults.length > 0;
         
         console.log(`✅ Verification completed. Tools used: ${hasToolsUsed ? 'Yes' : 'No'}`);
+        
+        // Log detailed tool results if available
+        if (hasToolsUsed && response.toolResults) {
+          console.log(`📊 Tool Results Details:`);
+          for (const toolResult of response.toolResults) {
+            console.log(`   🔧 Tool: ${toolResult.toolName}`);
+            console.log(`   📝 Arguments: ${JSON.stringify(toolResult.args)}`);
+            if (toolResult.result) {
+              console.log(`   ✅ Result Preview: ${JSON.stringify(toolResult.result, null, 2).substring(0, 500)}...`);
+            }
+          }
+        }
+        
+        // Log response content preview
+        if (response.content) {
+          console.log(`📋 Response Preview: ${response.content.substring(0, 200)}...`);
+        }
 
         // Clean up uploaded file after processing
         try {
@@ -233,6 +250,23 @@ class VerifierAgentServer {
         const hasToolsUsed = response.toolResults && response.toolResults.length > 0;
         
         console.log(`✅ Verification completed. Tools used: ${hasToolsUsed ? 'Yes' : 'No'}`);
+        
+        // Log detailed tool results if available
+        if (hasToolsUsed && response.toolResults) {
+          console.log(`📊 Tool Results Details:`);
+          for (const toolResult of response.toolResults) {
+            console.log(`   🔧 Tool: ${toolResult.toolName}`);
+            console.log(`   📝 Arguments: ${JSON.stringify(toolResult.args)}`);
+            if (toolResult.result) {
+              console.log(`   ✅ Result Preview: ${JSON.stringify(toolResult.result, null, 2).substring(0, 500)}...`);
+            }
+          }
+        }
+        
+        // Log response content preview
+        if (response.content) {
+          console.log(`📋 Response Preview: ${response.content.substring(0, 200)}...`);
+        }
 
         res.json({
           success: true,

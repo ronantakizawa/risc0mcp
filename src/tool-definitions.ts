@@ -425,5 +425,31 @@ export const toolDefinitions = [
       },
       required: ['inputs'],
     },
+  },
+  {
+    name: 'zkvm_logistic_regression',
+    description: 'Perform logistic regression binary classification with zero-knowledge proof for private machine learning',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        features: {
+          type: 'array',
+          description: 'Feature values for classification (e.g., [age, income, credit_score])',
+          items: { type: 'number' }
+        },
+        featureNames: {
+          type: 'array',
+          description: 'Names of the features for context (optional)',
+          items: { type: 'string' },
+          default: []
+        },
+        task: {
+          type: 'string',
+          description: 'Classification task type (e.g., "loan_approval", "spam_detection", "customer_churn")',
+          default: 'binary_classification'
+        }
+      },
+      required: ['features'],
+    },
   }
 ];

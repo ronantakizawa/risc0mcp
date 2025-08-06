@@ -1,4 +1,4 @@
-use methods::{ADDITION_ELF, ADDITION_ID, MULTIPLY_GUEST_ELF, MULTIPLY_GUEST_ID, SQRT_GUEST_ELF, SQRT_GUEST_ID, MODEXP_GUEST_ELF, MODEXP_GUEST_ID, GUEST_RANGE_ELF, GUEST_RANGE_ID, GUEST_AUTHENTICATED_ADD_ELF, GUEST_AUTHENTICATED_ADD_ID, GUEST_K_MEANS_ELF, GUEST_K_MEANS_ID, GUEST_LINEAR_REGRESSION_ELF, GUEST_LINEAR_REGRESSION_ID, GUEST_NEURAL_NETWORK_ELF, GUEST_NEURAL_NETWORK_ID};
+use methods::{ADDITION_ELF, ADDITION_ID, MULTIPLY_GUEST_ELF, MULTIPLY_GUEST_ID, SQRT_GUEST_ELF, SQRT_GUEST_ID, MODEXP_GUEST_ELF, MODEXP_GUEST_ID, GUEST_RANGE_ELF, GUEST_RANGE_ID, GUEST_AUTHENTICATED_ADD_ELF, GUEST_AUTHENTICATED_ADD_ID, GUEST_K_MEANS_ELF, GUEST_K_MEANS_ID, GUEST_LINEAR_REGRESSION_ELF, GUEST_LINEAR_REGRESSION_ID, GUEST_NEURAL_NETWORK_ELF, GUEST_NEURAL_NETWORK_ID, GUEST_LOGISTIC_REGRESSION_ELF, GUEST_LOGISTIC_REGRESSION_ID};
 use risc0_zkvm::{default_prover, ExecutorEnv, compute_image_id};
 use std::mem;
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
@@ -207,7 +207,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 std::process::exit(1);
             }
         }
-        "k_means" | "linear_regression" | "neural_network" => {
+        "k_means" | "linear_regression" | "neural_network" | "logistic_regression" => {
             if args.len() != 3 {
                 eprintln!("Usage: {} {} <json_inputs>", args[0], operation);
                 std::process::exit(1);
@@ -216,7 +216,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         _ => {
             if args.len() != 4 {
                 eprintln!("Usage: {} <operation> <a> <b>", args[0]);
-                eprintln!("Operations: add, multiply, sqrt, modexp, range, dynamic, precompiled, authenticated_add, k_means, linear_regression, neural_network");
+                eprintln!("Operations: add, multiply, sqrt, modexp, range, dynamic, precompiled, authenticated_add, k_means, linear_regression, neural_network, logistic_regression");
                 std::process::exit(1);
             }
         }
@@ -386,6 +386,11 @@ path = "src/main.rs"
             (GUEST_NEURAL_NETWORK_ELF, GUEST_NEURAL_NETWORK_ID, "neural_net", 
              format!("Neural network with inputs: {}", inputs_json), 0i64, "ml")
         },
+        "logistic_regression" => {
+            let inputs_json = &args[2];
+            (GUEST_LOGISTIC_REGRESSION_ELF, GUEST_LOGISTIC_REGRESSION_ID, "logistic_reg", 
+             format!("Logistic regression with inputs: {}", inputs_json), 0i64, "ml")
+        },
         "dynamic" | "precompiled" => {
             let inputs_json = &args[3];
             let elf_data = dynamic_elf_data.as_ref().expect("Dynamic/Precompiled ELF data should be loaded");
@@ -465,7 +470,7 @@ path = "src/main.rs"
                 .write(&task_id.to_string())?        // Task ID
                 .build()?
         },
-        "k_means" | "linear_regression" | "neural_network" => {
+        "k_means" | "linear_regression" | "neural_network" | "logistic_regression" => {
             let inputs_json = &args[2];
             
             // Parse inputs JSON to validate it's valid JSON
@@ -673,7 +678,7 @@ path = "src/main.rs"
             
             (computation_result.result as f64, computation_result.result)
         },
-        "k_means" | "linear_regression" | "neural_network" => {
+        "k_means" | "linear_regression" | "neural_network" | "logistic_regression" => {
             // For ML operations, extract the result from the journal
             let bytes = &receipt.journal.bytes;
             if bytes.is_empty() {
@@ -826,7 +831,7 @@ path = "src/main.rs"
             let max_value: u64 = args[4].parse().expect("Fourth argument must be a positive integer");
             println!("  \"inputs\": {{ \"min\": {}, \"max\": {} }},", min_value, max_value);
         },
-        "k_means" | "linear_regression" | "neural_network" => {
+        "k_means" | "linear_regression" | "neural_network" | "logistic_regression" => {
             let inputs_json = &args[2];
             println!("  \"inputs\": {},", inputs_json);
         },
