@@ -371,6 +371,101 @@ Proves that a secret number is within a specified range using RISC Zero zkVM wit
 }
 ```
 
+#### `zkvm_k_means`
+Performs K-means clustering algorithm with zero-knowledge proof for private machine learning. Clusters data points without revealing the training data.
+
+**Parameters:**
+- `dataPoints` (array): Array of data points, each as [x, y] coordinates
+- `k` (integer): Number of clusters (minimum 1)
+- `maxIterations` (integer, optional): Maximum iterations for convergence (default: 10)
+- `queryPoint` (array): Query point to classify as [x, y] coordinates
+
+**Response:**
+```json
+{
+  "computation": {
+    "operation": "k_means",
+    "inputs": {
+      "dataPoints": [[1.0, 2.0], [2.0, 1.0], [8.0, 9.0], [9.0, 8.0]],
+      "k": 2,
+      "maxIterations": 10,
+      "queryPoint": [1.5, 1.8]
+    },
+    "result": 0,
+    "executionTimeMs": 42000
+  },
+  "zkProof": {
+    "mode": "Production (real ZK proof)",
+    "imageId": "a1b2c3d4e5f67890123456789abcdef",
+    "verificationStatus": "verified",
+    "proofFilePath": "/path/to/proof_k_means_1754000000.bin"
+  },
+  "note": "Training data remains private - only cluster assignment is revealed"
+}
+```
+
+#### `zkvm_linear_regression`
+Performs linear regression analysis with zero-knowledge proof for private statistical modeling. Computes predictions while keeping datasets private.
+
+**Parameters:**
+- `xValues` (array): Array of x (independent) values
+- `yValues` (array): Array of y (dependent) values  
+- `predictX` (number): X value to predict Y for
+
+**Response:**
+```json
+{
+  "computation": {
+    "operation": "linear_regression",
+    "inputs": {
+      "xValues": [1, 2, 3, 4, 5],
+      "yValues": [2, 4, 6, 8, 10],
+      "predictX": 6
+    },
+    "result": 12.0,
+    "executionTimeMs": 25000
+  },
+  "zkProof": {
+    "mode": "Production (real ZK proof)",
+    "imageId": "b2c3d4e5f6789012345678901abcdef2",
+    "verificationStatus": "verified",
+    "proofFilePath": "/path/to/proof_linear_regression_1754000001.bin"
+  },
+  "note": "Dataset remains private - only the prediction result is revealed"
+}
+```
+
+#### `zkvm_neural_network`
+Executes neural network computation with zero-knowledge proof for private AI inference. Performs inference without revealing model weights.
+
+**Parameters:**
+- `inputs` (array): Input values for the neural network
+- `learningRate` (number, optional): Learning rate for training (default: 0.1)
+- `epochs` (integer, optional): Number of training epochs (default: 100)
+
+**Response:**
+```json
+{
+  "computation": {
+    "operation": "neural_network",
+    "inputs": {
+      "inputs": [0.5, 0.3, 0.8],
+      "learningRate": 0.1,
+      "epochs": 100
+    },
+    "result": 0.738,
+    "executionTimeMs": 28000
+  },
+  "zkProof": {
+    "mode": "Production (real ZK proof)",
+    "imageId": "c3d4e5f67890123456789012abcdef34",
+    "verificationStatus": "verified",
+    "proofFilePath": "/path/to/proof_neural_network_1754000002.bin"
+  },
+  "note": "Model weights remain private - only inference result is revealed"
+}
+```
+
 #### `verify_proof`
 Verifies a RISC Zero proof from a .bin or .hex file and extracts the computation result. Automatically detects the operation type from the filename.
 
