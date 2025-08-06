@@ -11,7 +11,7 @@ https://github.com/user-attachments/assets/9a970034-442c-4ff9-972d-ad7c6d1a5079
 - **K-Means Clustering**: Classify data points without revealing training data
 - **Linear Regression**: Make predictions while keeping datasets private  
 - **Neural Networks**: Basic neural network runs while hiding model weights
-- - **Mathematical Operations**: Addition, multiplication, square root, modular exponentiation
+- **Mathematical Operations**: Addition, multiplication, square root, modular exponentiation
 
 ## Architecture
 
