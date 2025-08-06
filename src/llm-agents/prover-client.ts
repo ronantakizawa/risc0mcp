@@ -235,12 +235,10 @@ class ProverAgentClient {
       const proofData = fs.readFileSync(proofFilePath);
       console.log(`📦 Read ${proofData.length} bytes of binary proof data`);
 
-      // Send verification request with binary proof data
-      console.log('📤 Sending verification request with binary proof data...');
+      // Send verification request with file path (avoids IMAGE_ID mismatch)
+      console.log('📤 Sending verification request with proof file path...');
       const response = await axios.post(`${this.verifierUrl}/verify-proof`, {
-        proofData: proofData,
-        proofSize: proofData.length,
-        originalFilePath: proofFilePath,
+        proofFilePath: proofFilePath,
         metadata
       }, {
         timeout: 120000, // 2 minutes for ZK verification

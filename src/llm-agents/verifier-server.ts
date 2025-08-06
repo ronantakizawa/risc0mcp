@@ -3,6 +3,9 @@
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
+import multer from 'multer';
+import * as fs from 'fs';
+import * as path from 'path';
 import { VerifierAgent } from './verifier-agent.js';
 
 /**
@@ -14,6 +17,7 @@ class VerifierAgentServer {
   private app: express.Application;
   private agent: VerifierAgent;
   private port: number;
+  private upload!: multer.Multer;
 
   constructor() {
     const apiKey = process.env.OPENAI_API_KEY;
@@ -38,6 +42,30 @@ class VerifierAgentServer {
     this.app.use(express.json({ limit: '50mb' }));
     this.app.use(express.urlencoded({ limit: '50mb', extended: true }));
     
+    // Configure multer for file uploads
+    const storage = multer.diskStorage({
+      destination: (req, file, cb) => {
+        const uploadDir = path.join(process.cwd(), 'uploads');
+        if (!fs.existsSync(uploadDir)) {
+          fs.mkdirSync(uploadDir, { recursive: true });
+        }
+        cb(null, uploadDir);
+      },
+      filename: (req, file, cb) => {
+        // Keep original filename with timestamp
+        const timestamp = Date.now();
+        const originalName = file.originalname || 'proof.bin';
+        cb(null, `upload_${timestamp}_${originalName}`);
+      }
+    });
+    
+    this.upload = multer({ 
+      storage: storage,
+      limits: {
+        fileSize: 50 * 1024 * 1024 // 50MB limit
+      }
+    });
+    
     // Request logging
     this.app.use((req, res, next) => {
       console.log(`[${new Date().toISOString()}] ${req.method} ${req.path}`);
@@ -56,10 +84,89 @@ class VerifierAgentServer {
       });
     });
 
-    // Single proof verification endpoint
+    // File upload proof verification endpoint
+    this.app.post('/verify-proof-file', this.upload.single('proofFile'), async (req, res) => {
+      try {
+        if (!req.file) {
+          return res.status(400).json({
+            success: false,
+            error: 'No proof file uploaded'
+          });
+        }
+
+        const uploadedFilePath = req.file.path;
+        const metadata = req.body.metadata ? JSON.parse(req.body.metadata) : {};
+        
+        console.log(`📁 Received proof file upload: ${req.file.originalname}`);
+        console.log(`📂 Saved to: ${uploadedFilePath}`);
+        console.log(`📊 File size: ${req.file.size} bytes`);
+        console.log(`🤔 LLM will decide whether to verify this uploaded proof file...`);
+
+        // Create a message for the VerifierAgent LLM with uploaded file path
+        const message = {
+          from: 'ProverAgent',
+          to: 'VerifierAgent', 
+          type: 'chat' as const,
+          content: `Please verify this uploaded zero-knowledge proof file: ${uploadedFilePath}. This proof was generated to demonstrate a mathematical computation. Use your verify_proof tool to check if this proof is cryptographically valid.`,
+          timestamp: Date.now()
+        };
+
+        // Let the VerifierAgent LLM process the request
+        const responses = await this.agent.handleMessage(message);
+        
+        const response = responses[0];
+        const hasToolsUsed = response.toolResults && response.toolResults.length > 0;
+        
+        console.log(`✅ Verification completed. Tools used: ${hasToolsUsed ? 'Yes' : 'No'}`);
+
+        // Clean up uploaded file after processing
+        try {
+          fs.unlinkSync(uploadedFilePath);
+          console.log(`🗑️  Cleaned up uploaded file: ${uploadedFilePath}`);
+        } catch (cleanupError) {
+          console.warn(`⚠️  Could not clean up file ${uploadedFilePath}:`, cleanupError);
+        }
+
+        res.json({
+          success: true,
+          verificationResult: {
+            content: response.content,
+            toolsUsed: response.toolResults || [],
+            toolCalls: response.toolCalls || []
+          },
+          metadata: {
+            verifiedAt: new Date().toISOString(),
+            llmDecision: hasToolsUsed ? 'Chose to verify proof' : 'No verification performed',
+            originalFileName: req.file.originalname,
+            fileSize: req.file.size,
+            originalMetadata: metadata
+          }
+        });
+
+      } catch (error) {
+        console.error('❌ Error processing file upload verification:', error);
+        
+        // Clean up file if error occurs
+        if (req.file?.path) {
+          try {
+            fs.unlinkSync(req.file.path);
+          } catch (cleanupError) {
+            console.warn('Could not clean up file after error:', cleanupError);
+          }
+        }
+        
+        res.status(500).json({
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error occurred',
+          timestamp: new Date().toISOString()
+        });
+      }
+    });
+
+    // Single proof verification endpoint (existing)
     this.app.post('/verify-proof', async (req, res) => {
       try {
-        const { proofData, proofSize, originalFilePath, proofFilePath, metadata } = req.body;
+        const { proofData, proofSize, proofFilePath, metadata } = req.body;
         
         // Support both new data-based and old file-based approaches
         if (!proofData && !proofFilePath) {
@@ -84,25 +191,14 @@ class VerifierAgentServer {
           console.log(`   - Data size: ${proofData?.length || (proofData as any)?.data?.length || 'unknown'} bytes`);
           console.log(`   - Expected size: ${proofSize} bytes`);
           
-          // Handle Buffer data conversion for LLM transmission
-          let proofDataForLLM: string;
-          if (Buffer.isBuffer(proofData)) {
-            proofDataForLLM = proofData.toString('base64');
-          } else if (typeof proofData === 'object' && proofData.type === 'Buffer' && Array.isArray(proofData.data)) {
-            // Handle serialized Buffer from JSON
-            proofDataForLLM = Buffer.from(proofData.data).toString('base64');
-          } else {
-            proofDataForLLM = proofData;
-          }
-          
-          // Also store the original binary data for the tool
+          // Store the raw binary data directly - no base64 conversion
           let originalProofData;
           if (Buffer.isBuffer(proofData)) {
             originalProofData = proofData;
           } else if (typeof proofData === 'object' && proofData && (proofData as any).type === 'Buffer' && Array.isArray((proofData as any).data)) {
             originalProofData = Buffer.from((proofData as any).data);
           } else {
-            originalProofData = proofData; // Assume it's base64 string
+            originalProofData = proofData; // Assume it's already binary data
           }
 
           // Create a message for the VerifierAgent LLM with proof data
@@ -112,12 +208,12 @@ class VerifierAgentServer {
             type: 'chat' as const,
             content: `Please verify this zero-knowledge proof data. I have proof data that is ${proofSize} bytes in size of binary data. This proof was generated to demonstrate a mathematical computation. Use your verify_proof_data tool to check if this proof is cryptographically valid.`,
             timestamp: Date.now(),
-            proofData: originalProofData, // Pass original data to tool
+            proofData: originalProofData, // Pass raw binary data directly
             proofSize: proofSize
           };
         } else {
-          // Old file-based approach for backward compatibility
-          console.log(`🔍 Received verification request for: ${proofFilePath}`);
+          // File-based approach - preferred to avoid IMAGE_ID mismatch
+          console.log(`🔍 Received verification request for file: ${proofFilePath}`);
           console.log(`🤔 LLM will decide whether to verify this proof file...`);
 
           // Create a message for the VerifierAgent LLM
@@ -125,7 +221,7 @@ class VerifierAgentServer {
             from: 'ProverAgent',
             to: 'VerifierAgent', 
             type: 'chat' as const,
-            content: `Please verify this zero-knowledge proof file: ${proofFilePath}. This proof was generated to demonstrate a mathematical computation. Use your verification tools to check if this proof is cryptographically valid.`,
+            content: `Please verify this zero-knowledge proof file: ${proofFilePath}. This proof was generated to demonstrate a mathematical computation. Use your verify_proof tool to check if this proof is cryptographically valid.`,
             timestamp: Date.now()
           };
         }
@@ -234,7 +330,8 @@ class VerifierAgentServer {
         console.log(`🌐 VerifierAgent server running on port ${this.port}`);
         console.log('📋 Endpoints:');
         console.log('   • GET  /health - Health check');
-        console.log('   • POST /verify-proof - Verify single proof');
+        console.log('   • POST /verify-proof - Verify single proof (JSON/binary data)');
+        console.log('   • POST /verify-proof-file - Verify uploaded proof file');
         console.log('   • POST /verify-proofs - Verify multiple proofs');
         console.log('');
         console.log('💡 LLM will intelligently choose verification tools based on requests');

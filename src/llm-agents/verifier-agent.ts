@@ -13,9 +13,15 @@ export class VerifierAgent extends ProperMCPAgent {
   public async handleMessage(message: Message): Promise<Message[]> {
     this.addToHistory(message);
 
-    // If the message contains proof data, instruct the LLM to use verify_proof_data
+    // Determine which verification method to use
     let additionalInstructions = '';
-    if (message.proofData) {
+    if (message.content.includes('.bin') || message.content.includes('.hex') || message.content.includes('proof file')) {
+      additionalInstructions = `
+
+IMPORTANT: This message contains a proof file path that you must verify:
+- You MUST use the verify_proof tool with the file path mentioned in the message
+- Use verify_proof (file-based) for better IMAGE_ID compatibility`;
+    } else if (message.proofData) {
       additionalInstructions = `
 
 IMPORTANT: This message contains proof data that you must verify:
