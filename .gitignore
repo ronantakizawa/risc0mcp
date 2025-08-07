@@ -123,6 +123,7 @@ coverage/
 .claude/
 notes.txt
 secrets.txt
+paper.tex
 
 
 keys/
