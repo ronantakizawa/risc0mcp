@@ -4,6 +4,8 @@
 
 A Model Context Protocol (MCP) server that allows trustless and verifiable agentic workflows using ZK proofs from Risc Zero. 
 
+Disclaimer: This MCP server is not an official release from the Risc Zero Team.
+
 https://github.com/user-attachments/assets/9a970034-442c-4ff9-972d-ad7c6d1a5079
 
 
